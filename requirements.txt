@@ -1,0 +1,2 @@
+# official MuJoCo Python bindings (includes the native engine).
+mujoco==3.11.0
