@@ -1,2 +1,5 @@
 # Local Python virtual environment
 .venv/
+
+# Downloaded Models
+models/
