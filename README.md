@@ -14,9 +14,35 @@ source .venv/bin/activate
 Run the commands all from the root directory
 
 ### Download so101 MuJuCo file
+taken from https://github.com/google-deepmind/mujoco_menagerie/tree/main/robotstudio_so101
+
 ```
 ./scripts/download_so101_mujoco_model.sh
 ```
+
+# Model Information
+
+# so101
+- 6 hinge joints
+- 6 position actuators
+- one-to-one mapping
+
+Joints:
+0: shoulder_pan    type=mjJNT_HINGE qpos[0] range=[-1.920, 1.920] rad
+1: shoulder_lift   type=mjJNT_HINGE qpos[1] range=[-1.745, 1.745] rad
+2: elbow_flex      type=mjJNT_HINGE qpos[2] range=[-1.690, 1.690] rad
+3: wrist_flex      type=mjJNT_HINGE qpos[3] range=[-1.658, 1.658] rad
+4: wrist_roll      type=mjJNT_HINGE qpos[4] range=[-2.744, 2.744] rad
+5: gripper         type=mjJNT_HINGE qpos[5] range=[-0.175, 1.745] rad
+
+Actuators:
+0: shoulder_pan    controls=shoulder_pan    ctrl[0] range=[-1.920, 1.920]
+1: shoulder_lift   controls=shoulder_lift   ctrl[1] range=[-1.745, 1.745]
+2: elbow_flex      controls=elbow_flex      ctrl[2] range=[-1.690, 1.690]
+3: wrist_flex      controls=wrist_flex      ctrl[3] range=[-1.658, 1.658]
+4: wrist_roll      controls=wrist_roll      ctrl[4] range=[-2.744, 2.841]
+5: gripper         controls=gripper         ctrl[5] range=[-0.175, 1.745]
+
 
 # Misc
 
