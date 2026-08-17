@@ -1,0 +1,38 @@
+<mujoco model="SO-101 two-cube stacking">
+  <include file="../models/so101/so101.xml"/>
+
+  <!-- Resolve mesh paths from this project-owned scene directory. -->
+  <compiler meshdir="../models/so101/assets"/>
+
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
+    <rgba haze="0.15 0.25 0.35 1"/>
+    <global azimuth="160" elevation="-20"/>
+  </visual>
+
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+  </asset>
+
+  <worldbody>
+    <light pos="0 0 3.5" dir="0 0 -1" directional="true"/>
+
+    <!-- The tabletop surface is at z=0, level with the robot base. -->
+    <geom name="table" type="box" pos="0.25 0 -0.025" size="0.45 0.35 0.025"
+      friction="0.8 0.005 0.0001" rgba="0.45 0.35 0.25 1"/>
+
+    <!-- MuJoCo box sizes are half-extents, so these are 4 cm cubes. -->
+    <!-- Half-extend just means it's measured by distance from center to edge -->
+    <body name="orange_cube" pos="0.30 -0.08 0.02">
+      <freejoint name="orange_cube_joint"/>
+      <geom name="orange_cube_geom" type="box" size="0.02 0.02 0.02" mass="0.04"
+        friction="0.8 0.005 0.0001" rgba="1.0 0.3 0.0 1"/>
+    </body>
+
+    <body name="blue_cube" pos="0.30 0.08 0.02">
+      <freejoint name="blue_cube_joint"/>
+      <geom name="blue_cube_geom" type="box" size="0.02 0.02 0.02" mass="0.04"
+        friction="0.8 0.005 0.0001" rgba="0.05 0.25 1.0 1"/>
+    </body>
+  </worldbody>
+</mujoco>
