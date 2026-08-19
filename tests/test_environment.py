@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 
 from environment import (
+    DEFAULT_JOINT_POSITIONS,
     ROBOT_JOINT_NAMES,
     CubeStackEnvironment,
     StateSnapshot,
@@ -103,9 +104,30 @@ def test_reset_clears_dynamics_and_controls(
 
     assert state["time"] == 0.0
     np.testing.assert_array_equal(environment.data.qvel, 0.0)
-    np.testing.assert_array_equal(state["controls"], 0.0)
+    np.testing.assert_array_equal(state["controls"], DEFAULT_JOINT_POSITIONS)
     np.testing.assert_array_equal(state["orange_velocity"], 0.0)
     np.testing.assert_array_equal(state["blue_velocity"], 0.0)
+
+
+def test_reset_uses_default_joint_positions(
+    environment: CubeStackEnvironment,
+) -> None:
+    expected_positions = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.5])
+
+    state = environment.reset(seed=12)
+
+    np.testing.assert_array_equal(
+        DEFAULT_JOINT_POSITIONS,
+        expected_positions,
+    )
+    np.testing.assert_array_equal(
+        state["joint_positions"],
+        expected_positions,
+    )
+    np.testing.assert_array_equal(
+        state["controls"],
+        expected_positions,
+    )
 
 
 def test_reset_updates_derived_body_poses(
