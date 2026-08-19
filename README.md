@@ -20,9 +20,15 @@ taken from https://github.com/google-deepmind/mujoco_menagerie/tree/main/robotst
 ./scripts/download_so101_mujoco_model.sh
 ```
 
+# Tests
+
+```
+python -m pytest
+```
+
 # Model Information
 
-# so101
+### so101
 - 6 hinge joints
 - 6 position actuators
 - one-to-one mapping
