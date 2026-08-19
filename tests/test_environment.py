@@ -1,12 +1,18 @@
 from pathlib import Path
 
+import mujoco
 import numpy as np
 import pytest
 
-from environment import CubeStackEnvironment, StateSnapshot
+from environment import (
+    ROBOT_JOINT_NAMES,
+    CubeStackEnvironment,
+    StateSnapshot,
+)
 
 
 SCENE_PATH = Path("scenes/so101_two_cube_stack.xml")
+JOINT_COUNT = len(ROBOT_JOINT_NAMES)
 ROBOT_MODEL_PATH = Path("models/so101/so101.xml")
 
 
@@ -25,6 +31,21 @@ def cube_layout(state: StateSnapshot) -> np.ndarray:
     return np.concatenate(
         [state["orange_position"], state["blue_position"]]
     )
+
+
+def safe_joint_target_bounds(
+    environment: CubeStackEnvironment,
+) -> tuple[np.ndarray, np.ndarray]:
+    lower_bounds = []
+    upper_bounds = []
+
+    for name in ROBOT_JOINT_NAMES:
+        actuator_range = environment.model.actuator(name).ctrlrange
+        joint_range = environment.model.joint(name).range
+        lower_bounds.append(max(actuator_range[0], joint_range[0]))
+        upper_bounds.append(min(actuator_range[1], joint_range[1]))
+
+    return np.array(lower_bounds), np.array(upper_bounds)
 
 
 def test_reset_reseeding_repeats_layout(
@@ -140,3 +161,122 @@ def test_snapshot_arrays_are_independent_copies(
                 state_after_mutation[name],
                 before_value,
             )
+
+
+@pytest.mark.parametrize(
+    "invalid_targets",
+    [
+        np.zeros(JOINT_COUNT - 1),
+        np.zeros(JOINT_COUNT + 1),
+        np.zeros((JOINT_COUNT, 1)),
+    ],
+)
+def test_step_joint_targets_rejects_wrong_shape(
+    environment: CubeStackEnvironment,
+    invalid_targets: np.ndarray,
+) -> None:
+    environment.reset(seed=1)
+    controls_before = environment.data.ctrl.copy()
+
+    with pytest.raises(
+        ValueError,
+        match=rf"shape \({JOINT_COUNT},\)",
+    ):
+        environment.step_joint_targets(invalid_targets)
+
+    np.testing.assert_array_equal(environment.data.ctrl, controls_before)
+    assert environment.data.time == 0.0
+
+
+@pytest.mark.parametrize("invalid_value", [np.nan, np.inf, -np.inf])
+def test_step_joint_targets_rejects_non_finite_values(
+    environment: CubeStackEnvironment,
+    invalid_value: float,
+) -> None:
+    environment.reset(seed=1)
+    controls_before = environment.data.ctrl.copy()
+    targets = np.zeros(JOINT_COUNT)
+    targets[2] = invalid_value
+
+    with pytest.raises(ValueError, match="finite"):
+        environment.step_joint_targets(targets)
+
+    np.testing.assert_array_equal(environment.data.ctrl, controls_before)
+    assert environment.data.time == 0.0
+
+
+def test_step_joint_targets_sets_controls_and_advances_time(
+    environment: CubeStackEnvironment,
+) -> None:
+    environment.reset(seed=2)
+    targets = np.array([0.20, -0.25, 0.30, -0.20, 0.40, 0.50])
+
+    state = environment.step_joint_targets(targets)
+
+    for action_index, actuator_name in enumerate(ROBOT_JOINT_NAMES):
+        actuator_id = environment.model.actuator(actuator_name).id
+        control_index = environment.model.actuator_ctrladr[actuator_id]
+        assert environment.data.ctrl[control_index] == pytest.approx(
+            targets[action_index]
+        )
+
+    np.testing.assert_allclose(state["controls"], targets)
+    assert state["time"] == pytest.approx(
+        10 * environment.model.opt.timestep
+    )
+
+
+@pytest.mark.parametrize(
+    ("requested_value", "bound_index"),
+    [(100.0, 1), (-100.0, 0)],
+)
+def test_step_joint_targets_clips_to_safe_limits(
+    environment: CubeStackEnvironment,
+    requested_value: float,
+    bound_index: int,
+) -> None:
+    environment.reset(seed=3)
+    lower_bounds, upper_bounds = safe_joint_target_bounds(environment)
+    expected_targets = (lower_bounds, upper_bounds)[bound_index]
+
+    state = environment.step_joint_targets(
+        np.full(JOINT_COUNT, requested_value)
+    )
+
+    np.testing.assert_allclose(state["controls"], expected_targets)
+
+
+def test_step_joint_targets_does_not_teleport_joints(
+    environment: CubeStackEnvironment,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    initial_state = environment.reset(seed=4)
+    initial_positions = initial_state["joint_positions"].copy()
+    targets = initial_positions.copy()
+    targets[0] = 0.75
+
+    positions_before_each_step = []
+    original_mj_step = mujoco.mj_step
+
+    def record_then_step(
+        model: mujoco.MjModel,
+        data: mujoco.MjData,
+    ) -> None:
+        positions_before_each_step.append(
+            np.array(
+                [data.joint(name).qpos[0] for name in ROBOT_JOINT_NAMES]
+            )
+        )
+        original_mj_step(model, data)
+
+    monkeypatch.setattr(mujoco, "mj_step", record_then_step)
+
+    state = environment.step_joint_targets(targets)
+
+    assert len(positions_before_each_step) == 10
+    np.testing.assert_array_equal(
+        positions_before_each_step[0],
+        initial_positions,
+    )
+    assert state["joint_positions"][0] > initial_positions[0]
+    assert state["joint_positions"][0] < targets[0]
