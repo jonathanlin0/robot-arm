@@ -2,6 +2,7 @@ from pathlib import Path
 
 import mujoco
 import numpy as np
+from numpy.typing import ArrayLike
 
 from randomization import (
     BLUE_CUBE_JOINT,
@@ -21,6 +22,7 @@ ROBOT_JOINT_NAMES = (
     "wrist_roll",
     "gripper",
 )
+PHYSICS_STEPS_PER_ACTION = 10
 
 StateSnapshot = dict[str, float | np.ndarray]
 
@@ -40,6 +42,47 @@ class CubeStackEnvironment:
         self.data = mujoco.MjData(self.model)
         self.spawn_config = spawn_config or CubeSpawnConfig()
         self.rng = np.random.default_rng(seed)
+        self._action_idx_to_actuator_ctrl_idx = np.empty(len(ROBOT_JOINT_NAMES), dtype=int)
+        self._joint_target_lower_bounds = np.empty(len(ROBOT_JOINT_NAMES))
+        self._joint_target_upper_bounds = np.empty(len(ROBOT_JOINT_NAMES))
+
+        for action_index, actuator_name in enumerate(ROBOT_JOINT_NAMES):
+            actuator_id = self.model.actuator(actuator_name).id
+
+            if self.model.actuator_ctrlnum[actuator_id] != 1:
+                raise ValueError(f"Actuator {actuator_name!r} must have one control input.")
+            # check not necessary for so101 model. for potential future robots that have stuff like tendors or bodies
+            if self.model.actuator_trntype[actuator_id] != mujoco.mjtTrn.mjTRN_JOINT:
+                raise ValueError(
+                    f"Actuator {actuator_name!r} must control a joint."
+                )
+
+            # verify that the actuator drives the joint with the same name
+            joint_id = self.model.actuator_trnid[actuator_id, 0]
+            expected_joint_id = self.model.joint(actuator_name).id
+            if joint_id != expected_joint_id:
+                raise ValueError(
+                    f"Actuator {actuator_name!r} must control the joint with "
+                    "the same name."
+                )
+
+            # verify intersection of actuator and joint safe range is valid
+            actuator_range = self.model.actuator_ctrlrange[actuator_id]
+            joint_range = self.model.jnt_range[joint_id]
+
+            lower_bound = max(actuator_range[0], joint_range[0])
+            upper_bound = min(actuator_range[1], joint_range[1])
+            if lower_bound > upper_bound:
+                raise ValueError(
+                    f"Actuator {actuator_name!r} has incompatible control "
+                    "and joint ranges."
+                )
+
+            self._action_idx_to_actuator_ctrl_idx[action_index] = (
+                self.model.actuator_ctrladr[actuator_id]
+            )
+            self._joint_target_lower_bounds[action_index] = lower_bound
+            self._joint_target_upper_bounds[action_index] = upper_bound
 
     def reset(self, *, seed: int | None = None) -> StateSnapshot:
         """Reset all state, randomize cube placements, and return a snapshot."""
@@ -59,12 +102,38 @@ class CubeStackEnvironment:
         return self.get_state()
 
     def step_physics(self, steps: int = 1) -> None:
-        """Advance raw physics; joint-target actions will be added next."""
+        """Advance raw physics by a requested number of timesteps."""
         if steps < 1:
             raise ValueError("steps must be at least 1.")
 
         for _ in range(steps):
             mujoco.mj_step(self.model, self.data)
+
+    def step_joint_targets(
+        self,
+        joint_targets: ArrayLike,
+    ) -> StateSnapshot:
+        """Apply safe position targets and advance one control interval."""
+        targets = np.asarray(joint_targets, dtype=float)
+        expected_shape = (len(ROBOT_JOINT_NAMES),)
+
+        if targets.shape != expected_shape:
+            raise ValueError(
+                f"joint_targets must have shape {expected_shape}; "
+                f"received {targets.shape}."
+            )
+        if not np.all(np.isfinite(targets)):
+            raise ValueError("joint_targets must contain only finite values.")
+
+        safe_targets = np.clip(
+            targets,
+            self._joint_target_lower_bounds,
+            self._joint_target_upper_bounds,
+        )
+        self.data.ctrl[self._action_idx_to_actuator_ctrl_idx] = safe_targets
+        self.step_physics(PHYSICS_STEPS_PER_ACTION)
+
+        return self.get_state()
 
     def get_state(self) -> StateSnapshot:
         """Return copied arrays so callers cannot mutate MuJoCo state."""
