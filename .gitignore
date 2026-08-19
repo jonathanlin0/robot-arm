@@ -5,5 +5,8 @@
 __pycache__/
 *.py[cod]
 
+# Pytest cache
+.pytest_cache/
+
 # Downloaded Models
 models/
