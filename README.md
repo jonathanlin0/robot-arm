@@ -1,3 +1,8 @@
+Objective: make robot arm stack orange box on top of the blue box.
+How: control the robot arm (via actuators) from some policy. train in sim and then try to zero shot real. ideally combine ML and RL.
+Why: i want to learn more about robotics, specifically from an ML and RL perspective. this is my first experience with robotics.
+
+
 tech stack: MuJoCo + RoboSuite
 robot arm: SO-101
 
