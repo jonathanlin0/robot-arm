@@ -1,3 +1,6 @@
 # official MuJoCo Python bindings (includes the native engine).
 mujoco==3.11.0
 numpy==2.5.2
+
+# Tests
+pytest==9.1.1
