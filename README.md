@@ -49,6 +49,21 @@ Actuators:
 4: wrist_roll      controls=wrist_roll      ctrl[4] range=[-2.744, 2.841]
 5: gripper         controls=gripper         ctrl[5] range=[-0.175, 1.745]
 
+# Methodology
+
+The neural net predicts (dx, dy, dz, dclamp) of the clamp. Then, inverse kinematics is used to calculate how to modify the 5 arms of the so101 to move to the new location: (x + dx, y + dy, z + dz). dclamp isn't part of the IK process. It's just manually controlled.
+
+Inverse kinematics utilizes the Jacobian to find the set of joint changes that most closely gets the gripper to the new position. The $3 \times 5$ Jacobian tells us how the position of the gripper changes wrt each joint change. So, each row corresponds how dx dy or dz changes, and each column corresponds with a different joint. The jacobian gives a local approximation, which is why it is recalculated.
+
+We then find the series of joint changes that minimizes the error of the new position of the gripper from the desired location. This process is done x number of times or until the error is below some threshold.
+
+Entire processes:
+- calc gripper location
+- calculate xyz error
+- calculate jacobian
+- choose a small 5-joint correction
+- update candidate joint angles
+- repeat until close enough or max iterations reached
 
 # Misc
 

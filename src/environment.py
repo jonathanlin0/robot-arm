@@ -22,6 +22,10 @@ ROBOT_JOINT_NAMES = (
     "wrist_roll",
     "gripper",
 )
+ARM_JOINT_NAMES = ROBOT_JOINT_NAMES[:-1]
+DEFAULT_JOINT_POSITIONS = np.array(
+    [0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
+)
 PHYSICS_STEPS_PER_ACTION = 10
 
 StateSnapshot = dict[str, float | np.ndarray]
@@ -90,6 +94,20 @@ class CubeStackEnvironment:
             self.rng = np.random.default_rng(seed)
 
         mujoco.mj_resetData(self.model, self.data)
+
+        for joint_name, joint_position in zip(
+            ROBOT_JOINT_NAMES,
+            DEFAULT_JOINT_POSITIONS,
+            strict=True,
+        ):
+            self.data.joint(joint_name).qpos[0] = joint_position
+
+        # match the actuator targets to the reset pose so the robot does not
+        # immediately try to move away from it on the first physics step.
+        self.data.ctrl[self._action_idx_to_actuator_ctrl_idx] = (
+            DEFAULT_JOINT_POSITIONS
+        )
+
         randomize_cube_placements(
             self.data,
             self.rng,
