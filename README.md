@@ -1,5 +1,13 @@
 Objective: make robot arm stack orange box on top of the blue box.
+
 How: control the robot arm (via actuators) from some policy. train in sim and then try to zero shot real. ideally combine ML and RL.
+
+Tasks (in order)
+- [ ] start with perfect observation - i.e., xyz coordinates of boxes. policy takes in coordinates of boxes and joint angles of arm and outputs gripper coordinates. IK used to calculate the individual joint actions
+- [ ] replace perfect xyz coordinates with camera input. a CV model predicts the squares xyz coordinates and the predictions are used as input to the action model. image data automatically generated via mujoco: taking screenshots of camera view and grabbing labels directly from internal state. essentially unlimited data can be generated.
+- [ ] remove separate CV training pipeline. the CV model produces some latent representation of the camera (i.e., visual encoder). another MLP takes in joint positions and produces latent vector. these values are concactonated as input to policy that produces gripper coordinates
+- [ ] modify model to output direct actuator action instead of gripper. This gets rid of IK reliance. we want to eventually get rid of IK for this specific project since actuators may not be perfect, so nontrivial chance that the joint actions derived from IK that are assumed in a perfect world wouldn't be accurate.
+
 Why: i want to learn more about robotics, specifically from an ML and RL perspective. this is my first experience with robotics.
 
 
