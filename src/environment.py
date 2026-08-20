@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 
 import mujoco
@@ -9,6 +10,10 @@ from randomization import (
     ORANGE_CUBE_JOINT,
     CubeSpawnConfig,
     randomize_cube_placements,
+)
+from success import (
+    StackSuccessConfig,
+    stack_conditions_met as evaluate_stack_conditions,
 )
 
 
@@ -40,12 +45,16 @@ class CubeStackEnvironment:
         *, # this forces every parameter after this to be named
         seed: int | None = None,
         spawn_config: CubeSpawnConfig | None = None,
+        success_config: StackSuccessConfig | None = None,
     ) -> None:
         self.scene_path = Path(scene_path).resolve()
         self.model = mujoco.MjModel.from_xml_path(str(self.scene_path))
         self.data = mujoco.MjData(self.model)
         self.spawn_config = spawn_config or CubeSpawnConfig()
+        self.success_config = success_config or StackSuccessConfig()
         self.rng = np.random.default_rng(seed)
+        self._stack_stable_time = 0.0
+        self._stack_success = False
         self._action_idx_to_actuator_ctrl_idx = np.empty(len(ROBOT_JOINT_NAMES), dtype=int)
         self._joint_target_lower_bounds = np.empty(len(ROBOT_JOINT_NAMES))
         self._joint_target_upper_bounds = np.empty(len(ROBOT_JOINT_NAMES))
@@ -93,6 +102,9 @@ class CubeStackEnvironment:
         if seed is not None:
             self.rng = np.random.default_rng(seed)
 
+        self._stack_stable_time = 0.0
+        self._stack_success = False
+
         mujoco.mj_resetData(self.model, self.data)
 
         for joint_name, joint_position in zip(
@@ -126,6 +138,47 @@ class CubeStackEnvironment:
 
         for _ in range(steps):
             mujoco.mj_step(self.model, self.data)
+            self._update_stack_success()
+
+    def stack_conditions_met(self) -> bool:
+        """Return whether the current state looks like a valid stack."""
+        return evaluate_stack_conditions(
+            self.model,
+            self.data,
+            self.success_config,
+        )
+
+    def is_success(self) -> bool:
+        """Return whether success has been reached since the last reset."""
+        return self._stack_success
+
+    @property
+    def stack_stable_time(self) -> float:
+        """Return accumulated valid-stack time in simulated seconds."""
+        return self._stack_stable_time
+
+    def _update_stack_success(self) -> None:
+        # Success terminates an episode, so keep it latched until reset.
+        if self._stack_success:
+            return
+
+        if not self.stack_conditions_met():
+            self._stack_stable_time = 0.0
+            return
+
+        # _stack_success isn't true but the stack conditions r met
+        # this happens when the env is waiting it out for stable stack verification
+        self._stack_stable_time = min(
+            self._stack_stable_time + self.model.opt.timestep,
+            self.success_config.required_stable_time,
+        )
+        if math.isclose(
+            self._stack_stable_time,
+            self.success_config.required_stable_time,
+            rel_tol=0.0,
+            abs_tol=1e-12,
+        ):
+            self._stack_success = True
 
     def step_joint_targets(
         self,
