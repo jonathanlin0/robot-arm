@@ -22,7 +22,8 @@ class PrivilegedObservationBuilder:
     5. orange cube XYZ position, quaternion, and free-joint velocity
     6. blue cube XYZ position, quaternion, and free-joint velocity
 
-    Normalization rules will be chosen when this class is implemented.
+    Values are returned in their native simulation units without
+    normalization. Simulation time is intentionally excluded.
     """
 
     def __init__(self, environment: CubeStackEnvironment) -> None:
@@ -30,7 +31,30 @@ class PrivilegedObservationBuilder:
 
     def build(self, state: StateSnapshot) -> np.ndarray:
         """Return one flat float32 privileged observation."""
-        raise NotImplementedError(
-            "Privileged observation construction has not been implemented "
-            "yet."
-        )
+        observation = np.concatenate(
+            (
+                state["joint_positions"],
+                state["joint_velocities"],
+                state["controls"],
+                state["gripper_position"],
+                state["orange_position"],
+                state["orange_orientation"],
+                state["orange_velocity"],
+                state["blue_position"],
+                state["blue_orientation"],
+                state["blue_velocity"],
+            )
+        ).astype(np.float32, copy=False)
+
+        expected_shape = (PRIVILEGED_OBSERVATION_SIZE,)
+        if observation.shape != expected_shape:
+            raise ValueError(
+                f"Privileged observation must have shape {expected_shape}; "
+                f"received {observation.shape}."
+            )
+        if not np.all(np.isfinite(observation)):
+            raise ValueError(
+                "Privileged observation must contain only finite values."
+            )
+
+        return observation
