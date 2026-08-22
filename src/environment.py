@@ -13,6 +13,8 @@ from randomization import (
 )
 from success import (
     StackSuccessConfig,
+    orange_gripper_pad_contacts,
+    orange_touches_table,
     stack_conditions_met as evaluate_stack_conditions,
 )
 
@@ -33,7 +35,7 @@ DEFAULT_JOINT_POSITIONS = np.array(
 )
 PHYSICS_STEPS_PER_ACTION = 10
 
-StateSnapshot = dict[str, float | np.ndarray]
+StateSnapshot = dict[str, bool | float | np.ndarray]
 
 
 class CubeStackEnvironment:
@@ -55,6 +57,8 @@ class CubeStackEnvironment:
         self.rng = np.random.default_rng(seed)
         self._stack_stable_time = 0.0
         self._stack_success = False
+        # grasp has occured previously but isn't occuring right now and grasp was occuring when the orange cube wasn't touching the table
+        self._confirmed_grasp_seen = False
         self._action_idx_to_actuator_ctrl_idx = np.empty(len(ROBOT_JOINT_NAMES), dtype=int)
         self._joint_target_lower_bounds = np.empty(len(ROBOT_JOINT_NAMES))
         self._joint_target_upper_bounds = np.empty(len(ROBOT_JOINT_NAMES))
@@ -104,6 +108,7 @@ class CubeStackEnvironment:
 
         self._stack_stable_time = 0.0
         self._stack_success = False
+        self._confirmed_grasp_seen = False
 
         mujoco.mj_resetData(self.model, self.data)
 
@@ -140,6 +145,8 @@ class CubeStackEnvironment:
             mujoco.mj_step(self.model, self.data)
             self._update_stack_success()
 
+        self._update_confirmed_grasp()
+
     def stack_conditions_met(self) -> bool:
         """Return whether the current state looks like a valid stack."""
         return evaluate_stack_conditions(
@@ -149,8 +156,13 @@ class CubeStackEnvironment:
         )
 
     def is_success(self) -> bool:
-        """Return whether success has been reached since the last reset."""
+        """Return whether grasp-and-stack success occurred since reset."""
         return self._stack_success
+
+    @property
+    def confirmed_grasp_seen(self) -> bool:
+        """Return whether orange has been held by both jaws off the table."""
+        return self._confirmed_grasp_seen
 
     @property
     def stack_stable_time(self) -> float:
@@ -158,6 +170,12 @@ class CubeStackEnvironment:
         return self._stack_stable_time
 
     def _update_stack_success(self) -> None:
+        # A physical stack does not satisfy this task unless the orange cube
+        # was first genuinely grasped and lifted from the table.
+        if not self._confirmed_grasp_seen:
+            self._stack_stable_time = 0.0
+            return
+
         # Success terminates an episode, so keep it latched until reset.
         if self._stack_success:
             return
@@ -179,6 +197,20 @@ class CubeStackEnvironment:
             abs_tol=1e-12,
         ):
             self._stack_success = True
+
+    def _update_confirmed_grasp(self) -> None:
+        if self._confirmed_grasp_seen:
+            return
+
+        (
+            orange_touches_fixed_jaw,
+            orange_touches_moving_jaw,
+        ) = orange_gripper_pad_contacts(self.model, self.data)
+        self._confirmed_grasp_seen = (
+            orange_touches_fixed_jaw
+            and orange_touches_moving_jaw
+            and not orange_touches_table(self.model, self.data)
+        )
 
     def step_joint_targets(
         self,
@@ -210,6 +242,10 @@ class CubeStackEnvironment:
         """Return copied arrays so callers cannot mutate MuJoCo state."""
         orange_joint = self.data.joint(ORANGE_CUBE_JOINT)
         blue_joint = self.data.joint(BLUE_CUBE_JOINT)
+        (
+            orange_touches_fixed_jaw,
+            orange_touches_moving_jaw,
+        ) = orange_gripper_pad_contacts(self.model, self.data)
 
         return {
             "time": float(self.data.time),
@@ -227,4 +263,11 @@ class CubeStackEnvironment:
             "blue_position": self.data.body("blue_cube").xpos.copy(),
             "blue_orientation": self.data.body("blue_cube").xquat.copy(),
             "blue_velocity": blue_joint.qvel.copy(),
+            "orange_touches_fixed_jaw": orange_touches_fixed_jaw,
+            "orange_touches_moving_jaw": orange_touches_moving_jaw,
+            "orange_touches_table": orange_touches_table(
+                self.model,
+                self.data,
+            ),
+            "confirmed_grasp_seen": self._confirmed_grasp_seen,
         }
