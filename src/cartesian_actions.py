@@ -4,7 +4,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 from environment import CubeStackEnvironment, StateSnapshot
-from kinematics import IKResult
+from kinematics import ToolAxisIKResult
 
 
 CARTESIAN_ACTION_SIZE = 4
@@ -38,7 +38,7 @@ class CartesianActionResult:
 
     state: StateSnapshot
     target_gripper_position: np.ndarray
-    ik_result: IKResult
+    ik_result: ToolAxisIKResult
 
 
 class CartesianActionAdapter:
