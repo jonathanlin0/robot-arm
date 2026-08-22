@@ -23,9 +23,11 @@ class StackRewardConfig:
     lift_orange_progress_weight: float = 5.0
     # margin above target orange cube height for lifting it
     vertical_lift_margin: float = 0.03 # 3 cm
-    # scaled reward for moving the orange cube toward the blue cube
-    move_toward_blue_progress_weight: float = 2.0
-    # scaled reward for horizontally aligning the orange cube center with the blue cube center. only active after the first grasp
+    # scaled reward for moving toward the safe hover position above blue
+    move_toward_hover_progress_weight: float = 2.0
+    # scaled reward for lowering toward the final stack after alignment
+    lower_toward_stack_progress_weight: float = 2.0
+    # scaled reward for horizontally aligning the two cube centers
     stack_alignment_progress_weight: float = 5.0
     successful_stack_reward: float = 100.0
     dropped_cube_penalty: float = -10.0
@@ -43,10 +45,10 @@ class StackRewardConfig:
             self.grasp_reward,
             self.lift_orange_progress_weight,
             self.vertical_lift_margin,
-            self.move_toward_blue_progress_weight,
+            self.move_toward_hover_progress_weight,
+            self.lower_toward_stack_progress_weight,
             self.stack_alignment_progress_weight,
             self.successful_stack_reward,
-            self.action_magnitude_penalty_weight,
         )
         if not all(
             math.isfinite(value) and value >= 0.0
@@ -60,6 +62,7 @@ class StackRewardConfig:
         penalty_values = (
             self.dropped_cube_penalty,
             self.ik_failure_penalty,
+            self.action_magnitude_penalty_weight,
         )
         if not all(
             math.isfinite(value) and value <= 0.0
@@ -111,6 +114,28 @@ def _stack_target_distance(
     return float(np.linalg.norm(orange_position - stack_target))
 
 
+def _hover_target_distance(
+    orange_position: np.ndarray,
+    blue_position: np.ndarray,
+    vertical_distance: float,
+    vertical_lift_margin: float,
+) -> float:
+    """Return distance from orange to the safe hover target above blue."""
+    hover_target = blue_position.copy()
+    hover_target[2] += vertical_distance + vertical_lift_margin
+    return float(np.linalg.norm(orange_position - hover_target))
+
+
+def _horizontal_alignment_error(
+    orange_position: np.ndarray,
+    blue_position: np.ndarray,
+) -> float:
+    """Return the larger absolute X/Y center offset in meters."""
+    return float(
+        np.max(np.abs(orange_position[:2] - blue_position[:2]))
+    )
+
+
 class StackRewardCalculator:
     """Calculate rewards while tracking one-time episode events."""
 
@@ -128,11 +153,23 @@ class StackRewardCalculator:
         self._bilateral_contact_seen = False
         self._confirmed_grasp_seen = False
         self._drop_penalized = False
+        self._safe_lift_completed = False
+        self._hover_alignment_completed = False
 
     @property
     def confirmed_grasp_seen(self) -> bool:
         """Return whether this episode has contained a confirmed grasp."""
         return self._confirmed_grasp_seen
+
+    @property
+    def safe_lift_completed(self) -> bool:
+        """Return whether the current attempt reached the safe hover height."""
+        return self._safe_lift_completed
+
+    @property
+    def hover_alignment_completed(self) -> bool:
+        """Return whether the current attempt aligned at the hover target."""
+        return self._hover_alignment_completed
 
     def task_succeeded(self, physical_stack_succeeded: bool) -> bool:
         """Require both the final stack and an earlier genuine grasp."""
@@ -158,6 +195,8 @@ class StackRewardCalculator:
             initial_state["confirmed_grasp_seen"]
         )
         self._drop_penalized = False
+        self._safe_lift_completed = False
+        self._hover_alignment_completed = False
 
     def calculate(
         self,
@@ -170,6 +209,7 @@ class StackRewardCalculator:
         Calculate the shaped reward for one environment transition.
         
         TODO: i think this has a lot of repeated calculations that the environment can own and then return in the state
+        TODO: the logic in this function is also a little weird. change it so that the order of the rewards here match the order that the rewards would typically be given in
         """
         if self._initial_orange_height is None:
             raise RuntimeError(
@@ -239,13 +279,18 @@ class StackRewardCalculator:
             and not bool(current_state["orange_touches_table"])
         )
         grasp_seen_before_transition = self._confirmed_grasp_seen
+        safe_lift_completed_before_transition = self._safe_lift_completed
+        hover_alignment_completed_before_transition = (
+            self._hover_alignment_completed
+        )
 
         components = {
             "approach_orange_progress": 0.0,
             "grasp_candidate": 0.0,
             "grasp": 0.0,
             "lift_orange_progress": 0.0,
-            "move_toward_blue_progress": 0.0,
+            "move_toward_hover_progress": 0.0,
+            "lower_toward_stack_progress": 0.0,
             "stack_alignment_progress": 0.0,
             "successful_stack": 0.0,
             "dropped_cube": 0.0,
@@ -281,11 +326,15 @@ class StackRewardCalculator:
         if currently_confirmed_grasp and self._drop_penalized:
             self._drop_penalized = False
 
-        # Keep these signed potentials active after the first grasp, including
-        # after release. Otherwise lifting and dropping repeatedly could earn
-        # positive progress without paying back the downward movement.
+        # Each phase uses signed progress so reversing an earlier movement
+        # pays back its shaping reward. Lift remains active through hover
+        # alignment, but stops during placement so intended descent is not
+        # penalized.
         transport_active = self._confirmed_grasp_seen
-        if transport_active:
+        if (
+            transport_active
+            and not hover_alignment_completed_before_transition
+        ):
             initial_height = self._initial_orange_height
             maximum_lift = (
                 self.success_config.expected_vertical_center_distance
@@ -306,6 +355,42 @@ class StackRewardCalculator:
                 * (current_lift_potential - previous_lift_potential)
             )
 
+        previous_alignment_error = _horizontal_alignment_error(
+            previous_orange_position,
+            previous_blue_position,
+        )
+        current_alignment_error = _horizontal_alignment_error(
+            current_orange_position,
+            current_blue_position,
+        )
+        if safe_lift_completed_before_transition:
+            components["stack_alignment_progress"] = float(
+                self.config.stack_alignment_progress_weight
+                * (previous_alignment_error - current_alignment_error)
+            )
+
+        if (
+            safe_lift_completed_before_transition
+            and not hover_alignment_completed_before_transition
+        ):
+            previous_hover_distance = _hover_target_distance(
+                previous_orange_position,
+                previous_blue_position,
+                self.success_config.expected_vertical_center_distance,
+                self.config.vertical_lift_margin,
+            )
+            current_hover_distance = _hover_target_distance(
+                current_orange_position,
+                current_blue_position,
+                self.success_config.expected_vertical_center_distance,
+                self.config.vertical_lift_margin,
+            )
+            components["move_toward_hover_progress"] = float(
+                self.config.move_toward_hover_progress_weight
+                * (previous_hover_distance - current_hover_distance)
+            )
+
+        if hover_alignment_completed_before_transition:
             previous_stack_distance = _stack_target_distance(
                 previous_orange_position,
                 previous_blue_position,
@@ -316,26 +401,9 @@ class StackRewardCalculator:
                 current_blue_position,
                 self.success_config.expected_vertical_center_distance,
             )
-            components["move_toward_blue_progress"] = float(
-                self.config.move_toward_blue_progress_weight
+            components["lower_toward_stack_progress"] = float(
+                self.config.lower_toward_stack_progress_weight
                 * (previous_stack_distance - current_stack_distance)
-            )
-
-            previous_alignment_error = np.max(
-                np.abs(
-                    previous_orange_position[:2]
-                    - previous_blue_position[:2]
-                )
-            )
-            current_alignment_error = np.max(
-                np.abs(
-                    current_orange_position[:2]
-                    - current_blue_position[:2]
-                )
-            )
-            components["stack_alignment_progress"] = float(
-                self.config.stack_alignment_progress_weight
-                * (previous_alignment_error - current_alignment_error)
             )
 
         cube_fell_off_table = bool(
@@ -353,12 +421,41 @@ class StackRewardCalculator:
             and bool(current_state["orange_touches_table"])
             and not task_succeeded
         )
+        drop_detected = (
+            cube_fell_off_table or dropped_onto_table_after_grasp
+        )
         if (
-            (cube_fell_off_table or dropped_onto_table_after_grasp)
+            drop_detected
             and not self._drop_penalized
         ):
             components["dropped_cube"] = self.config.dropped_cube_penalty
             self._drop_penalized = True
+
+        # A recoverable tabletop drop starts a new transport attempt. The
+        # large drop penalty prevents repeatedly resetting these phases from
+        # becoming a profitable reward cycle.
+        if drop_detected:
+            self._safe_lift_completed = False
+            self._hover_alignment_completed = False
+        elif currently_confirmed_grasp:
+            hover_height = (
+                current_blue_position[2]
+                + self.success_config.expected_vertical_center_distance
+                + self.config.vertical_lift_margin
+            )
+            height_is_safe = current_orange_position[2] >= hover_height
+
+            if (
+                safe_lift_completed_before_transition
+                and height_is_safe
+                and current_alignment_error
+                <= self.success_config.max_horizontal_center_offset
+                + self.success_config.floating_point_numerical_tolerance
+            ):
+                self._hover_alignment_completed = True
+
+            if height_is_safe:
+                self._safe_lift_completed = True
 
         if not action_result.ik_result.position_converged:
             components["ik_failure"] = self.config.ik_failure_penalty
