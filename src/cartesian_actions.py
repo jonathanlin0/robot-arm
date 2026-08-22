@@ -15,7 +15,7 @@ from kinematics import (
     solve_position_and_tool_axis_ik,
 )
 
-
+# (dx, dy, dz, gripper)
 CARTESIAN_ACTION_SIZE = 4
 
 
@@ -133,6 +133,65 @@ class CartesianActionAdapter:
 
     def step(self, action: ArrayLike) -> CartesianActionResult:
         """Apply one normalized Cartesian action to the simulation."""
-        raise NotImplementedError(
-            "Cartesian action conversion has not been implemented yet."
+        normalized_action = np.asarray(action, dtype=float)
+        expected_shape = (CARTESIAN_ACTION_SIZE,)
+
+        if normalized_action.shape != expected_shape:
+            raise ValueError(
+                f"action must have shape {expected_shape}; received "
+                f"{normalized_action.shape}."
+            )
+        if not np.all(np.isfinite(normalized_action)):
+            raise ValueError("action must contain only finite values.")
+
+        applied_action = np.clip(normalized_action, -1.0, 1.0)
+        current_state = self.environment.get_state()
+
+        position_delta = (
+            applied_action[:3] * self.config.maximum_position_delta
+        )
+        target_gripper_position = np.clip(
+            current_state["gripper_position"] + position_delta,
+            self.config.workspace_lower_bounds,
+            self.config.workspace_upper_bounds,
+        )
+
+        # convert gripper range from [-1, 1] to [0, 1]
+        gripper_fraction = (applied_action[3] + 1.0) / 2.0
+        # convert gripper fraction to real joint action (angle)
+        gripper_target = self.config.closed_gripper_target + (
+            gripper_fraction
+            * (
+                self.config.open_gripper_target
+                - self.config.closed_gripper_target
+            )
+        )
+
+        ik_result = solve_position_and_tool_axis_ik(
+            model=self.environment.model,
+            initial_joint_positions=current_state["joint_positions"][
+                : len(ARM_JOINT_NAMES) # essentially to remove the gripper joint position
+            ],
+            target_position=target_gripper_position,
+            target_tool_axis=self.config.target_tool_axis,
+            stop_when_position_converged=True, # note: this makes function return when position converged, even if gripper angle didn't
+            minimum_iterations=1,
+        )
+
+        if ik_result.position_converged:
+            joint_targets = np.concatenate(
+                (ik_result.joint_positions, [gripper_target])
+            )
+            next_state = self.environment.step_joint_targets(joint_targets)
+        else:
+            # Treat one policy action atomically. If its Cartesian target is
+            # unreachable, preserve the previous six actuator commands while
+            # still advancing the normal amount of simulated time.
+            self.environment.step_physics(PHYSICS_STEPS_PER_ACTION)
+            next_state = self.environment.get_state()
+
+        return CartesianActionResult(
+            state=next_state,
+            target_gripper_position=target_gripper_position.copy(),
+            ik_result=ik_result,
         )
