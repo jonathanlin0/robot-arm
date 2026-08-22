@@ -34,7 +34,7 @@ DEFAULT_JOINT_POSITIONS = np.array(
     [0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
 )
 PHYSICS_STEPS_PER_ACTION = 10
-DEFAULT_OFF_TABLE_HEIGHT_TOLERANCE = 0.005
+OFF_TABLE_HEIGHT_TOLERANCE = 0.005
 
 StateSnapshot = dict[str, bool | float | np.ndarray]
 
@@ -49,24 +49,12 @@ class CubeStackEnvironment:
         seed: int | None = None,
         spawn_config: CubeSpawnConfig | None = None,
         success_config: StackSuccessConfig | None = None,
-        off_table_height_tolerance: float = (
-            DEFAULT_OFF_TABLE_HEIGHT_TOLERANCE
-        ),
     ) -> None:
         self.scene_path = Path(scene_path).resolve()
         self.model = mujoco.MjModel.from_xml_path(str(self.scene_path))
         self.data = mujoco.MjData(self.model)
         self.spawn_config = spawn_config or CubeSpawnConfig()
         self.success_config = success_config or StackSuccessConfig()
-        if (
-            not math.isfinite(off_table_height_tolerance)
-            or off_table_height_tolerance < 0.0
-        ):
-            raise ValueError(
-                "off_table_height_tolerance must be finite and "
-                "nonnegative."
-            )
-        self.off_table_height_tolerance = off_table_height_tolerance
         self.rng = np.random.default_rng(seed)
         self._stack_stable_time = 0.0
         self._stack_success = False
@@ -276,7 +264,7 @@ class CubeStackEnvironment:
             )
             self._orange_fell_off_table = orange_center_height < (
                 self._initial_orange_height
-                - self.off_table_height_tolerance
+                - OFF_TABLE_HEIGHT_TOLERANCE
             )
 
         if not self._blue_fell_off_table:
@@ -285,7 +273,7 @@ class CubeStackEnvironment:
             )
             self._blue_fell_off_table = blue_center_height < (
                 self._initial_blue_height
-                - self.off_table_height_tolerance
+                - OFF_TABLE_HEIGHT_TOLERANCE
             )
 
     def step_joint_targets(
