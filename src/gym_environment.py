@@ -87,9 +87,15 @@ class CubeStackGymEnvironment(gym.Env[np.ndarray, np.ndarray]):
         options: dict[str, Any] | None = None,
     ) -> tuple[np.ndarray, dict[str, Any]]:
         """Start an episode and return its initial observation and info."""
-        raise NotImplementedError(
-            "Gymnasium reset has not been implemented yet."
-        )
+        super().reset(seed=seed)
+
+        initial_state = self.simulation.reset(seed=seed)
+        self.reward_calculator.reset(initial_state)
+        self.episode_step_count = 0
+        self.previous_state = initial_state
+
+        observation = self.observation_builder.build(initial_state)
+        return observation, {}
 
     def step(
         self,
