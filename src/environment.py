@@ -34,6 +34,7 @@ DEFAULT_JOINT_POSITIONS = np.array(
     [0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
 )
 PHYSICS_STEPS_PER_ACTION = 10
+DEFAULT_OFF_TABLE_HEIGHT_TOLERANCE = 0.005
 
 StateSnapshot = dict[str, bool | float | np.ndarray]
 
@@ -48,17 +49,33 @@ class CubeStackEnvironment:
         seed: int | None = None,
         spawn_config: CubeSpawnConfig | None = None,
         success_config: StackSuccessConfig | None = None,
+        off_table_height_tolerance: float = (
+            DEFAULT_OFF_TABLE_HEIGHT_TOLERANCE
+        ),
     ) -> None:
         self.scene_path = Path(scene_path).resolve()
         self.model = mujoco.MjModel.from_xml_path(str(self.scene_path))
         self.data = mujoco.MjData(self.model)
         self.spawn_config = spawn_config or CubeSpawnConfig()
         self.success_config = success_config or StackSuccessConfig()
+        if (
+            not math.isfinite(off_table_height_tolerance)
+            or off_table_height_tolerance < 0.0
+        ):
+            raise ValueError(
+                "off_table_height_tolerance must be finite and "
+                "nonnegative."
+            )
+        self.off_table_height_tolerance = off_table_height_tolerance
         self.rng = np.random.default_rng(seed)
         self._stack_stable_time = 0.0
         self._stack_success = False
         # grasp has occured previously but isn't occuring right now and grasp was occuring when the orange cube wasn't touching the table
         self._confirmed_grasp_seen = False
+        self._initial_orange_height = self.spawn_config.cube_center_z
+        self._initial_blue_height = self.spawn_config.cube_center_z
+        self._orange_fell_off_table = False
+        self._blue_fell_off_table = False
         self._action_idx_to_actuator_ctrl_idx = np.empty(len(ROBOT_JOINT_NAMES), dtype=int)
         self._joint_target_lower_bounds = np.empty(len(ROBOT_JOINT_NAMES))
         self._joint_target_upper_bounds = np.empty(len(ROBOT_JOINT_NAMES))
@@ -109,6 +126,8 @@ class CubeStackEnvironment:
         self._stack_stable_time = 0.0
         self._stack_success = False
         self._confirmed_grasp_seen = False
+        self._orange_fell_off_table = False
+        self._blue_fell_off_table = False
 
         mujoco.mj_resetData(self.model, self.data)
 
@@ -134,6 +153,14 @@ class CubeStackEnvironment:
         # doesn't advance time forward tho
         mujoco.mj_forward(self.model, self.data)
 
+        # manually resetting it here in case we later randomize the env, like table height, cube size, etc
+        self._initial_orange_height = float(
+            self.data.body("orange_cube").xpos[2]
+        )
+        self._initial_blue_height = float(
+            self.data.body("blue_cube").xpos[2]
+        )
+
         return self.get_state()
 
     def step_physics(self, steps: int = 1) -> None:
@@ -143,6 +170,7 @@ class CubeStackEnvironment:
 
         for _ in range(steps):
             mujoco.mj_step(self.model, self.data)
+            self._update_off_table_failure()
             self._update_stack_success()
 
         self._update_confirmed_grasp()
@@ -159,10 +187,33 @@ class CubeStackEnvironment:
         """Return whether grasp-and-stack success occurred since reset."""
         return self._stack_success
 
+    def is_failure(self) -> bool:
+        """Return whether an unrecoverable failure occurred since reset.
+                
+        For now, it's only considered unrecoverable if either cube fell off the table."""
+        return (
+            self._orange_fell_off_table
+            or self._blue_fell_off_table
+        )
+
+    def is_terminated(self) -> bool:
+        """Return whether this episode ended in either success or failure."""
+        return self.is_success() or self.is_failure()
+
     @property
     def confirmed_grasp_seen(self) -> bool:
         """Return whether orange has been held by both jaws off the table."""
         return self._confirmed_grasp_seen
+
+    @property
+    def orange_fell_off_table(self) -> bool:
+        """Return whether orange fell irrecoverably below the tabletop."""
+        return self._orange_fell_off_table
+
+    @property
+    def blue_fell_off_table(self) -> bool:
+        """Return whether blue fell irrecoverably below the tabletop."""
+        return self._blue_fell_off_table
 
     @property
     def stack_stable_time(self) -> float:
@@ -170,6 +221,11 @@ class CubeStackEnvironment:
         return self._stack_stable_time
 
     def _update_stack_success(self) -> None:
+        # is failure should always be checked before checking of the stack was successful, but i guess this works for consistency/redundancy
+        if self.is_failure():
+            self._stack_stable_time = 0.0
+            return
+
         # A physical stack does not satisfy this task unless the orange cube
         # was first genuinely grasped and lifted from the table.
         if not self._confirmed_grasp_seen:
@@ -199,7 +255,7 @@ class CubeStackEnvironment:
             self._stack_success = True
 
     def _update_confirmed_grasp(self) -> None:
-        if self._confirmed_grasp_seen:
+        if self._confirmed_grasp_seen or self.is_failure():
             return
 
         (
@@ -211,6 +267,26 @@ class CubeStackEnvironment:
             and orange_touches_moving_jaw
             and not orange_touches_table(self.model, self.data)
         )
+
+    def _update_off_table_failure(self) -> None:
+        if not self._orange_fell_off_table:
+            # raw data stored as floating point number, but not necessarily built-in python float
+            orange_center_height = float(
+                self.data.body("orange_cube").xpos[2]
+            )
+            self._orange_fell_off_table = orange_center_height < (
+                self._initial_orange_height
+                - self.off_table_height_tolerance
+            )
+
+        if not self._blue_fell_off_table:
+            blue_center_height = float(
+                self.data.body("blue_cube").xpos[2]
+            )
+            self._blue_fell_off_table = blue_center_height < (
+                self._initial_blue_height
+                - self.off_table_height_tolerance
+            )
 
     def step_joint_targets(
         self,
@@ -270,4 +346,6 @@ class CubeStackEnvironment:
                 self.data,
             ),
             "confirmed_grasp_seen": self._confirmed_grasp_seen,
+            "orange_fell_off_table": self._orange_fell_off_table,
+            "blue_fell_off_table": self._blue_fell_off_table,
         }
