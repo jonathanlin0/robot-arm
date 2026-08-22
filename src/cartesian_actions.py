@@ -3,8 +3,17 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import ArrayLike
 
-from environment import CubeStackEnvironment, StateSnapshot
-from kinematics import ToolAxisIKResult
+from environment import (
+    ARM_JOINT_NAMES,
+    PHYSICS_STEPS_PER_ACTION,
+    CubeStackEnvironment,
+    StateSnapshot,
+)
+from kinematics import (
+    ToolAxisIKResult,
+    WORLD_DOWN,
+    solve_position_and_tool_axis_ik,
+)
 
 
 CARTESIAN_ACTION_SIZE = 4
@@ -17,6 +26,7 @@ class CartesianActionConfig:
     maximum_position_delta: float = 0.01 # multiply output by this since output is restricted to [-1, 1]. so, this will be 0.01 m/action. assuming 20 actions / second leads to 0.2 m/s as max speed
     closed_gripper_target: float = -0.1
     open_gripper_target: float = 0.5
+    target_tool_axis: tuple[float, float, float] = WORLD_DOWN
 
     # these are loose bounds and are temporary placeholders. grabbed from valid cube spawn locations plus a little margin.
     # modify these in future if unreachable by arm
@@ -31,6 +41,66 @@ class CartesianActionConfig:
         0.35,
     )
 
+    def __post_init__(self) -> None:
+        if (
+            not np.isfinite(self.maximum_position_delta)
+            or self.maximum_position_delta <= 0.0
+        ):
+            raise ValueError(
+                "maximum_position_delta must be finite and greater than "
+                "zero."
+            )
+
+        gripper_targets = (
+            self.closed_gripper_target,
+            self.open_gripper_target,
+        )
+        if not np.all(np.isfinite(gripper_targets)):
+            raise ValueError("gripper targets must be finite.")
+        if self.closed_gripper_target >= self.open_gripper_target:
+            raise ValueError(
+                "closed gripper target must be less than open gripper "
+                "target."
+            )
+
+        # converted to temporary numpy arrs for easy validation
+        workspace_lower_bounds_np = np.asarray(
+            self.workspace_lower_bounds,
+            dtype=float,
+        )
+        workspace_upper_bounds_np = np.asarray(
+            self.workspace_upper_bounds,
+            dtype=float,
+        )
+        if (
+            workspace_lower_bounds_np.shape != (3,)
+            or workspace_upper_bounds_np.shape != (3,)
+        ):
+            raise ValueError("workspace bounds must each contain XYZ values.")
+        if not np.all(
+            np.isfinite(
+                np.concatenate(
+                    (workspace_lower_bounds_np, workspace_upper_bounds_np)
+                )
+            )
+        ):
+            raise ValueError("workspace bounds must be finite.")
+        if np.any(workspace_lower_bounds_np >= workspace_upper_bounds_np):
+            raise ValueError(
+                "workspace lower bounds must be below upper bounds."
+            )
+
+        target_tool_axis = np.asarray(self.target_tool_axis, dtype=float)
+        if target_tool_axis.shape != (3,):
+            raise ValueError("target_tool_axis must contain XYZ values.")
+        if (
+            not np.all(np.isfinite(target_tool_axis))
+            or np.linalg.norm(target_tool_axis) == 0.0
+        ):
+            raise ValueError(
+                "target_tool_axis must be finite and have nonzero length."
+            )
+
 
 @dataclass(frozen=True)
 class CartesianActionResult:
@@ -42,7 +112,7 @@ class CartesianActionResult:
 
 
 class CartesianActionAdapter:
-    """Convert normalized Cartesian policy actions into joint targets.
+    """Translate normalized Cartesian actions and execute them.
 
     The action has four values in ``[-1, 1]``:
 
