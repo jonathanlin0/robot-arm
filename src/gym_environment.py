@@ -20,7 +20,7 @@ from observations import (
     PrivilegedObservationBuilder,
 )
 from randomization import CubeSpawnConfig
-from rewards import StackRewardConfig
+from rewards import StackRewardCalculator, StackRewardConfig
 from success import StackSuccessConfig
 
 
@@ -59,6 +59,10 @@ class CubeStackGymEnvironment(gym.Env[np.ndarray, np.ndarray]):
             self.simulation
         )
         self.reward_config = reward_config or StackRewardConfig()
+        self.reward_calculator = StackRewardCalculator(
+            self.reward_config,
+            self.simulation.success_config,
+        )
         self.maximum_episode_steps = maximum_episode_steps
         self.episode_step_count = 0
         self.previous_state: StateSnapshot | None = None

@@ -11,7 +11,30 @@ ORANGE_CUBE_BODY = "orange_cube"
 BLUE_CUBE_BODY = "blue_cube"
 ORANGE_CUBE_GEOM = "orange_cube_geom"
 BLUE_CUBE_GEOM = "blue_cube_geom"
+TABLE_GEOM = "table"
 GRIPPER_BODY = "gripper"
+
+# These are the collision primitives on the two surfaces that actually
+# pinch an object. The more proximal box geoms and camera geoms are excluded
+# so bumping the gripper housing does not count as a grasp.
+# grabbed from models/so101/so101.xml
+FIXED_JAW_PAD_GEOM_NAMES = (
+    "fixed_jaw_sph_tip1",
+    "fixed_jaw_sph_tip2",
+    "fixed_jaw_sph_tip3",
+    "fixed_jaw_box3",
+    "fixed_jaw_box4",
+    "fixed_jaw_box5",
+    "fixed_jaw_box6",
+    "fixed_jaw_box7",
+)
+MOVING_JAW_PAD_GEOM_NAMES = (
+    "moving_jaw_sph_tip1",
+    "moving_jaw_sph_tip2",
+    "moving_jaw_sph_tip3",
+    "moving_jaw_box2",
+    "moving_jaw_box3",
+)
 
 
 @dataclass(frozen=True)
@@ -61,6 +84,64 @@ def _geoms_are_in_contact(
             return True
 
     return False
+
+
+def orange_gripper_pad_contacts(
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+) -> tuple[bool, bool]:
+    """Return whether orange touches the fixed and moving gripping pads."""
+    orange_geom_id = model.geom(ORANGE_CUBE_GEOM).id
+    fixed_pad_geom_ids = {
+        model.geom(name).id for name in FIXED_JAW_PAD_GEOM_NAMES
+    }
+    moving_pad_geom_ids = {
+        model.geom(name).id for name in MOVING_JAW_PAD_GEOM_NAMES
+    }
+    touches_fixed_pad = False
+    touches_moving_pad = False
+
+    # can also solve this by using _geoms_are_in_contact and then looping through to see if orange is touching any of fixed_pad_geom_ids and then any of moving_pad_geom_ids
+    # but just looping through the collisions is more efficient since there's so many possible collisions to check
+
+    for contact in data.contact:
+        first_geom_id = int(contact.geom1)
+        second_geom_id = int(contact.geom2)
+
+        if orange_geom_id not in (first_geom_id, second_geom_id):
+            continue
+
+        other_geom_id = (
+            second_geom_id
+            if first_geom_id == orange_geom_id
+            else first_geom_id
+        )
+        # geom id is -1 when that side of contact is a flexible object rather
+        # than a regular geom
+        if other_geom_id < 0:
+            continue
+
+        if other_geom_id in fixed_pad_geom_ids:
+            touches_fixed_pad = True
+        elif other_geom_id in moving_pad_geom_ids:
+            touches_moving_pad = True
+
+        if touches_fixed_pad and touches_moving_pad:
+            break
+
+    return touches_fixed_pad, touches_moving_pad
+
+
+def orange_touches_table(
+    model: mujoco.MjModel,
+    data: mujoco.MjData,
+) -> bool:
+    """Return whether the orange cube currently contacts the table."""
+    return _geoms_are_in_contact(
+        data,
+        model.geom(ORANGE_CUBE_GEOM).id,
+        model.geom(TABLE_GEOM).id,
+    )
 
 
 def _orange_touches_gripper(
