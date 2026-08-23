@@ -102,6 +102,61 @@ class CubeStackGymEnvironment(gym.Env[np.ndarray, np.ndarray]):
         action: np.ndarray,
     ) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
         """Apply one policy action and return the Gymnasium transition."""
-        raise NotImplementedError(
-            "Gymnasium step has not been implemented yet."
+        if self.previous_state is None:
+            raise RuntimeError(
+                "reset() must be called before the first step()."
+            )
+
+        action_result = self.action_adapter.step(action)
+        current_state = action_result.state
+        failed = self.simulation.is_failure()
+        succeeded = self.simulation.is_success() and not failed
+
+        reward_result = self.reward_calculator.calculate(
+            previous_state=self.previous_state,
+            action=action,
+            action_result=action_result,
+            succeeded=succeeded,
+        )
+
+        self.episode_step_count += 1
+        terminated = self.simulation.is_terminated()
+        truncated = (
+            self.episode_step_count >= self.maximum_episode_steps
+            and not terminated
+        )
+
+        observation = self.observation_builder.build(current_state)
+        self.previous_state = current_state
+
+        info = {
+            "is_success": succeeded,
+            "is_failure": failed,
+            "orange_fell_off_table": bool(
+                current_state["orange_fell_off_table"]
+            ),
+            "blue_fell_off_table": bool(
+                current_state["blue_fell_off_table"]
+            ),
+            "reward_components": reward_result.components,
+            "ik_position_converged": (
+                action_result.ik_result.position_converged
+            ),
+            "ik_tool_axis_converged": (
+                action_result.ik_result.tool_axis_converged
+            ),
+            "safe_lift_completed": (
+                self.reward_calculator.safe_lift_completed
+            ),
+            "hover_alignment_completed": (
+                self.reward_calculator.hover_alignment_completed
+            ),
+        }
+
+        return (
+            observation,
+            reward_result.total,
+            terminated,
+            truncated,
+            info,
         )
