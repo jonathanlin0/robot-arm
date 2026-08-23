@@ -320,6 +320,9 @@ class CubeStackEnvironment:
                 [self.data.joint(name).qvel[0] for name in ROBOT_JOINT_NAMES]
             ),
             "controls": self.data.ctrl.copy(), # controls r the intended angles/locations for the actuators
+            "gripper_target": float(
+                self.data.actuator("gripper").ctrl[0]
+            ),
             "gripper_position": self.data.site("gripperframe").xpos.copy(),
             "orange_position": self.data.body("orange_cube").xpos.copy(),
             "orange_orientation": self.data.body("orange_cube").xquat.copy(),

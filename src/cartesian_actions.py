@@ -26,6 +26,8 @@ class CartesianActionConfig:
     maximum_position_delta: float = 0.01 # multiply output by this since output is restricted to [-1, 1]. so, this will be 0.01 m/action. assuming 20 actions / second leads to 0.2 m/s as max speed
     closed_gripper_target: float = -0.1
     open_gripper_target: float = 0.5
+    close_gripper_command_threshold: float = -0.5
+    open_gripper_command_threshold: float = 0.5
     target_tool_axis: tuple[float, float, float] = WORLD_DOWN
 
     # these are loose bounds and are temporary placeholders. grabbed from valid cube spawn locations plus a little margin.
@@ -61,6 +63,22 @@ class CartesianActionConfig:
             raise ValueError(
                 "closed gripper target must be less than open gripper "
                 "target."
+            )
+
+        gripper_command_thresholds = (
+            self.close_gripper_command_threshold,
+            self.open_gripper_command_threshold,
+        )
+        if not np.all(np.isfinite(gripper_command_thresholds)):
+            raise ValueError("gripper command thresholds must be finite.")
+        if not (
+            -1.0 <= self.close_gripper_command_threshold
+            < self.open_gripper_command_threshold
+            <= 1.0
+        ):
+            raise ValueError(
+                "gripper command thresholds must satisfy "
+                "-1 <= close < open <= 1."
             )
 
         # converted to temporary numpy arrs for easy validation
@@ -119,8 +137,9 @@ class CartesianActionAdapter:
     ``[dx, dy, dz, gripper_command]``
 
     The first three values become a bounded XYZ displacement from the
-    current gripper position. The final value maps to an absolute gripper
-    position between the configured closed and open targets.
+    current gripper position. The final value is a persistent gripper
+    command: sufficiently negative closes, sufficiently positive opens, and
+    values between the two thresholds retain the previous actuator target.
     """
 
     def __init__(
@@ -156,16 +175,13 @@ class CartesianActionAdapter:
             self.config.workspace_upper_bounds,
         )
 
-        # convert gripper range from [-1, 1] to [0, 1]
-        gripper_fraction = (applied_action[3] + 1.0) / 2.0
-        # convert gripper fraction to real joint action (angle)
-        gripper_target = self.config.closed_gripper_target + (
-            gripper_fraction
-            * (
-                self.config.open_gripper_target
-                - self.config.closed_gripper_target
-            )
-        )
+        gripper_command = applied_action[3]
+        if gripper_command <= self.config.close_gripper_command_threshold:
+            gripper_target = self.config.closed_gripper_target
+        elif gripper_command >= self.config.open_gripper_command_threshold:
+            gripper_target = self.config.open_gripper_target
+        else:
+            gripper_target = float(current_state["gripper_target"])
 
         ik_result = solve_position_and_tool_axis_ik(
             model=self.environment.model,
