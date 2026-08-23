@@ -34,6 +34,8 @@ class StackRewardConfig:
     # penatly when the IK can't solve the intended gripper location. likely means the orientation of the arms is in a weird shape
     ik_failure_penalty: float = -1.0
     action_magnitude_penalty_weight: float = -0.01
+    # small one-time cost whenever the persistent gripper target switches
+    gripper_state_change_penalty: float = -0.01
 
     # CONCERNS
     # policy may be rewarded to pick up the orange cube but not drop it if the rewards for picking it up are too high
@@ -63,6 +65,7 @@ class StackRewardConfig:
             self.dropped_cube_penalty,
             self.ik_failure_penalty,
             self.action_magnitude_penalty_weight,
+            self.gripper_state_change_penalty,
         )
         if not all(
             math.isfinite(value) and value <= 0.0
@@ -296,6 +299,7 @@ class StackRewardCalculator:
             "dropped_cube": 0.0,
             "ik_failure": 0.0,
             "action_magnitude": 0.0,
+            "gripper_state_change": 0.0,
         }
 
         if not grasp_seen_before_transition:
@@ -460,12 +464,20 @@ class StackRewardCalculator:
         if not action_result.ik_result.position_converged:
             components["ik_failure"] = self.config.ik_failure_penalty
 
-        # The fourth action is an absolute gripper command, so its magnitude
-        # has no neutral center. Penalize only Cartesian motion deltas here.
+        # The fourth action switches or retains a persistent gripper target;
+        # its magnitude is not physical motion. Penalize only Cartesian
+        # motion deltas here.
         components["action_magnitude"] = float(
             self.config.action_magnitude_penalty_weight
             * np.mean(np.square(applied_action[:3]))
         )
+
+        previous_gripper_target = float(previous_state["gripper_target"])
+        current_gripper_target = float(current_state["gripper_target"])
+        if previous_gripper_target != current_gripper_target:
+            components["gripper_state_change"] = (
+                self.config.gripper_state_change_penalty
+            )
 
         if task_succeeded:
             components["successful_stack"] = (
