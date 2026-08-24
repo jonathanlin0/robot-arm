@@ -36,6 +36,10 @@ class StackRewardConfig:
     action_magnitude_penalty_weight: float = -0.01
     # small one-time cost whenever the persistent gripper target switches
     gripper_state_change_penalty: float = -0.01
+    # discourage a close attempt that does not reach both jaw pads
+    unproductive_close_penalty: float = -0.05
+    # time allowed for the physical jaws to close before judging the attempt
+    close_contact_grace_period: float = 0.25
 
     # CONCERNS
     # policy may be rewarded to pick up the orange cube but not drop it if the rewards for picking it up are too high
@@ -51,6 +55,7 @@ class StackRewardConfig:
             self.lower_toward_stack_progress_weight,
             self.stack_alignment_progress_weight,
             self.successful_stack_reward,
+            self.close_contact_grace_period,
         )
         if not all(
             math.isfinite(value) and value >= 0.0
@@ -66,6 +71,7 @@ class StackRewardConfig:
             self.ik_failure_penalty,
             self.action_magnitude_penalty_weight,
             self.gripper_state_change_penalty,
+            self.unproductive_close_penalty,
         )
         if not all(
             math.isfinite(value) and value <= 0.0
@@ -158,6 +164,7 @@ class StackRewardCalculator:
         self._drop_penalized = False
         self._safe_lift_completed = False
         self._hover_alignment_completed = False
+        self._close_attempt_start_time: float | None = None
 
     @property
     def confirmed_grasp_seen(self) -> bool:
@@ -200,6 +207,7 @@ class StackRewardCalculator:
         self._drop_penalized = False
         self._safe_lift_completed = False
         self._hover_alignment_completed = False
+        self._close_attempt_start_time = None
 
     def calculate(
         self,
@@ -300,6 +308,7 @@ class StackRewardCalculator:
             "ik_failure": 0.0,
             "action_magnitude": 0.0,
             "gripper_state_change": 0.0,
+            "unproductive_close": 0.0,
         }
 
         if not grasp_seen_before_transition:
@@ -478,6 +487,41 @@ class StackRewardCalculator:
             components["gripper_state_change"] = (
                 self.config.gripper_state_change_penalty
             )
+
+        closed_during_transition = (
+            current_gripper_target < previous_gripper_target
+        )
+        opened_during_transition = (
+            current_gripper_target > previous_gripper_target
+        )
+        previous_time = float(previous_state["time"])
+        current_time = float(current_state["time"])
+        if closed_during_transition:
+            # The target changes before this transition's physics steps, so
+            # the attempt begins at the previous state's simulation time.
+            self._close_attempt_start_time = previous_time
+
+        if self._close_attempt_start_time is not None:
+            close_attempt_duration = (
+                current_time - self._close_attempt_start_time
+            )
+            grace_period_reached = (
+                close_attempt_duration
+                >= self.config.close_contact_grace_period
+            )
+            contact_within_grace_period = (
+                current_bilateral_contact
+                and close_attempt_duration
+                <= self.config.close_contact_grace_period
+            )
+
+            if contact_within_grace_period:
+                self._close_attempt_start_time = None
+            elif opened_during_transition or grace_period_reached:
+                components["unproductive_close"] = (
+                    self.config.unproductive_close_penalty
+                )
+                self._close_attempt_start_time = None
 
         if task_succeeded:
             components["successful_stack"] = (
