@@ -5,6 +5,7 @@ import mujoco
 import numpy as np
 from numpy.typing import ArrayLike
 
+from gripper import jaw_tip_midpoint
 from randomization import (
     BLUE_CUBE_JOINT,
     ORANGE_CUBE_JOINT,
@@ -30,11 +31,13 @@ ROBOT_JOINT_NAMES = (
     "gripper",
 )
 ARM_JOINT_NAMES = ROBOT_JOINT_NAMES[:-1]
+DEFAULT_OPEN_GRIPPER_POSITION = 1.0
 DEFAULT_JOINT_POSITIONS = np.array(
-    [0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
+    [0.0, 0.0, 0.0, 0.0, 0.0, DEFAULT_OPEN_GRIPPER_POSITION]
 )
 PHYSICS_STEPS_PER_ACTION = 10
 OFF_TABLE_HEIGHT_TOLERANCE = 0.005
+MINIMUM_HOLD_TIME = 2.0
 
 StateSnapshot = dict[str, bool | float | np.ndarray]
 
@@ -60,6 +63,7 @@ class CubeStackEnvironment:
         self._stack_success = False
         # grasp has occured previously but isn't occuring right now and grasp was occuring when the orange cube wasn't touching the table
         self._confirmed_grasp_seen = False
+        self._orange_lifted_at_time: float | None = None
         self._initial_orange_height = self.spawn_config.cube_center_z
         self._initial_blue_height = self.spawn_config.cube_center_z
         self._orange_fell_off_table = False
@@ -114,6 +118,7 @@ class CubeStackEnvironment:
         self._stack_stable_time = 0.0
         self._stack_success = False
         self._confirmed_grasp_seen = False
+        self._orange_lifted_at_time = None
         self._orange_fell_off_table = False
         self._blue_fell_off_table = False
 
@@ -159,9 +164,8 @@ class CubeStackEnvironment:
         for _ in range(steps):
             mujoco.mj_step(self.model, self.data)
             self._update_off_table_failure()
+            self._update_pickup_progress()
             self._update_stack_success()
-
-        self._update_confirmed_grasp()
 
     def stack_conditions_met(self) -> bool:
         """Return whether the current state looks like a valid stack."""
@@ -172,8 +176,9 @@ class CubeStackEnvironment:
         )
 
     def is_success(self) -> bool:
-        """Return whether grasp-and-stack success occurred since reset."""
-        return self._stack_success
+        """Return whether orange was continuously held for the required time."""
+        # return self._stack_success
+        return self.get_hold_time() >= MINIMUM_HOLD_TIME
 
     def is_failure(self) -> bool:
         """Return whether an unrecoverable failure occurred since reset.
@@ -192,6 +197,19 @@ class CubeStackEnvironment:
     def confirmed_grasp_seen(self) -> bool:
         """Return whether orange has been held by both jaws off the table."""
         return self._confirmed_grasp_seen
+
+    def get_hold_time(self) -> float:
+        """Return seconds elapsed in the current uninterrupted valid hold."""
+        if (
+            self._orange_lifted_at_time is None
+            or not self._orange_is_currently_held()
+        ):
+            return 0.0
+
+        return max(
+            0.0,
+            float(self.data.time) - self._orange_lifted_at_time,
+        )
 
     @property
     def orange_fell_off_table(self) -> bool:
@@ -242,16 +260,28 @@ class CubeStackEnvironment:
         ):
             self._stack_success = True
 
-    def _update_confirmed_grasp(self) -> None:
-        if self._confirmed_grasp_seen or self.is_failure():
+    def _update_pickup_progress(self) -> None:
+        """Track a continuous bilateral, off-table hold at physics frequency."""
+        if not self._orange_is_currently_held():
+            self._orange_lifted_at_time = None
             return
 
+        self._confirmed_grasp_seen = True
+        if self._orange_lifted_at_time is None:
+            self._orange_lifted_at_time = max(
+                0.0,
+                float(self.data.time) - self.model.opt.timestep,
+            )
+
+    def _orange_is_currently_held(self) -> bool:
+        """Return whether both jaws hold orange clear of the table."""
         (
             orange_touches_fixed_jaw,
             orange_touches_moving_jaw,
         ) = orange_gripper_pad_contacts(self.model, self.data)
-        self._confirmed_grasp_seen = (
-            orange_touches_fixed_jaw
+        return bool(
+            not self.is_failure()
+            and orange_touches_fixed_jaw
             and orange_touches_moving_jaw
             and not orange_touches_table(self.model, self.data)
         )
@@ -310,6 +340,16 @@ class CubeStackEnvironment:
             orange_touches_fixed_jaw,
             orange_touches_moving_jaw,
         ) = orange_gripper_pad_contacts(self.model, self.data)
+        orange_has_table_contact = orange_touches_table(
+            self.model,
+            self.data,
+        )
+        orange_currently_held = (
+            not self.is_failure()
+            and orange_touches_fixed_jaw
+            and orange_touches_moving_jaw
+            and not orange_has_table_contact
+        )
 
         return {
             "time": float(self.data.time),
@@ -323,7 +363,15 @@ class CubeStackEnvironment:
             "gripper_target": float(
                 self.data.actuator("gripper").ctrl[0]
             ),
-            "gripper_position": self.data.site("gripperframe").xpos.copy(),
+            # Rigid Cartesian control and approach-reward reference. Unlike
+            # the midpoint between the jaws, this site does not move when
+            # only the gripper aperture changes.
+            "gripper_position": self.data.site(
+                "gripperframe"
+            ).xpos.copy(),
+            # Live geometry retained for grasp diagnostics. This point moves
+            # as the moving jaw opens and closes.
+            "jaw_midpoint": jaw_tip_midpoint(self.data),
             "orange_position": self.data.body("orange_cube").xpos.copy(),
             "orange_orientation": self.data.body("orange_cube").xquat.copy(),
             "orange_velocity": orange_joint.qvel.copy(),
@@ -332,10 +380,9 @@ class CubeStackEnvironment:
             "blue_velocity": blue_joint.qvel.copy(),
             "orange_touches_fixed_jaw": orange_touches_fixed_jaw,
             "orange_touches_moving_jaw": orange_touches_moving_jaw,
-            "orange_touches_table": orange_touches_table(
-                self.model,
-                self.data,
-            ),
+            "orange_touches_table": orange_has_table_contact,
+            "orange_currently_held": orange_currently_held,
+            "orange_grasp_hold_time": self.get_hold_time(),
             "confirmed_grasp_seen": self._confirmed_grasp_seen,
             "orange_fell_off_table": self._orange_fell_off_table,
             "blue_fell_off_table": self._blue_fell_off_table,

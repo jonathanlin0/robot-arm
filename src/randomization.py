@@ -12,8 +12,10 @@ BLUE_CUBE_JOINT = "blue_cube_joint"
 class CubeSpawnConfig:
     """Valid tabletop region and spacing for randomized cube placements."""
 
-    x_range: tuple[float, float] = (0.22, 0.38)
-    y_range: tuple[float, float] = (-0.16, 0.16)
+    # Reduced initial curriculum region. Broaden these bounds again after
+    # grasping is reliable within this easier distribution.
+    x_range: tuple[float, float] = (0.25, 0.35)
+    y_range: tuple[float, float] = (-0.10, 0.10)
     cube_center_z: float = 0.02
     minimum_center_distance: float = 0.08
     maximum_attempts: int = 1_000

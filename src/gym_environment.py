@@ -90,11 +90,17 @@ class CubeStackGymEnvironment(gym.Env[np.ndarray, np.ndarray]):
         super().reset(seed=seed)
 
         initial_state = self.simulation.reset(seed=seed)
+        self.action_adapter.reset(initial_state)
         self.reward_calculator.reset(initial_state)
         self.episode_step_count = 0
         self.previous_state = initial_state
 
-        observation = self.observation_builder.build(initial_state)
+        observation = self.observation_builder.build(
+            initial_state,
+            orange_pregrasp_waypoint_reached=(
+                self.reward_calculator.orange_pregrasp_waypoint_reached
+            ),
+        )
         return observation, {}
 
     def step(
@@ -126,7 +132,12 @@ class CubeStackGymEnvironment(gym.Env[np.ndarray, np.ndarray]):
             and not terminated
         )
 
-        observation = self.observation_builder.build(current_state)
+        observation = self.observation_builder.build(
+            current_state,
+            orange_pregrasp_waypoint_reached=(
+                self.reward_calculator.orange_pregrasp_waypoint_reached
+            ),
+        )
         self.previous_state = current_state
 
         info = {
@@ -137,6 +148,15 @@ class CubeStackGymEnvironment(gym.Env[np.ndarray, np.ndarray]):
             ),
             "blue_fell_off_table": bool(
                 current_state["blue_fell_off_table"]
+            ),
+            "orange_currently_held": bool(
+                current_state["orange_currently_held"]
+            ),
+            "orange_grasp_hold_time": float(
+                current_state["orange_grasp_hold_time"]
+            ),
+            "orange_pregrasp_waypoint_reached": (
+                self.reward_calculator.orange_pregrasp_waypoint_reached
             ),
             "reward_components": reward_result.components,
             "ik_position_converged": (

@@ -5,7 +5,7 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 from cartesian_actions import CARTESIAN_ACTION_SIZE, CartesianActionResult
-from environment import StateSnapshot
+from environment import MINIMUM_HOLD_TIME, StateSnapshot
 from success import StackSuccessConfig
 
 
@@ -13,33 +13,74 @@ from success import StackSuccessConfig
 class StackRewardConfig:
     """Weights used by the shaped stacking reward."""
 
-    # scaled reward for gripper approaching orange cube
-    approach_orange_progress_weight: float = 1.0
+    # # scaled reward for gripper approaching a pregrasp point above orange
+    # approach_orange_progress_weight: float = 1.3
+    # # vertical distance from the orange center to that pregrasp point
+    # approach_orange_height_offset: float = 0.08
+    # # distance at which the pregrasp waypoint is considered reached
+    # approach_orange_waypoint_tolerance: float = 0.01
+    # # one-time reward for reaching the pregrasp waypoint
+    # approach_orange_waypoint_reward: float = 1.0
+    # # one-time reward for getting the clamp grasps the orange cube
+    # grasp_candidate_reward: float = 1.3
+    # # one-time reward when the orange cube is grasped and off the table
+    # grasp_reward: float = 8.0
+    # # per-action reward for each second in the current uninterrupted hold
+    # hold_orange_duration_weight: float = 1.0
+    # # per-action reward per meter orange is held above its reset height
+    # lift_orange_height_weight: float = 5.0
+    # # margin above target orange cube height for lifting it
+    # vertical_lift_margin: float = 0.03 # 3 cm
+    # # Stacking phases are disabled during the pickup-only curriculum.
+    # move_toward_hover_progress_weight: float = 0.0
+    # lower_toward_stack_progress_weight: float = 0.0
+    # stack_alignment_progress_weight: float = 0.0
+    # successful_stack_reward: float = 100.0
+    # dropped_cube_penalty: float = -10.0
+    # # penatly when the IK can't solve the intended gripper location. likely means the orientation of the arms is in a weird shape
+    # ik_failure_penalty: float = -0.5
+    # action_magnitude_penalty_weight: float = -0.015
+    # # signed shaping value whenever the persistent gripper target switches
+    # gripper_state_change_penalty: float = -0.02 # TEMP
+    # # per-action penalty while the gripper is closed before the pregrasp
+    # # waypoint, unless both jaws already contact orange
+    # unproductive_close_penalty: float = -0.01
+
+    # scaled reward for gripper approaching a pregrasp point above orange
+    approach_orange_progress_weight: float = 10
+    # vertical distance from the orange center to that pregrasp point
+    approach_orange_height_offset: float = 0.08  # 8 cm
+    # distance at which the pregrasp waypoint is considered reached
+    approach_orange_waypoint_tolerance: float = 0.01  # 10 mm
+    # one-time reward for reaching the pregrasp waypoint
+    approach_orange_waypoint_reward: float = 1.0
+    # after the waypoint, give no approach reward within this 3D distance
+    # from the rigid gripperframe to the orange cube center
+    approach_orange_capture_radius: float = 0.015  # 15 mm
     # one-time reward for getting the clamp grasps the orange cube
-    grasp_candidate_reward: float = 1.0
+    grasp_candidate_reward: float = 1.3
     # one-time reward when the orange cube is grasped and off the table
-    grasp_reward: float = 5.0
-    # scaled reward for lifting the cube up
-    lift_orange_progress_weight: float = 5.0
+    grasp_reward: float = 8.0
+    # per-action reward for each second in the current uninterrupted hold
+    hold_orange_duration_weight: float = 0.5
+    # per-action reward per meter orange is held above its reset height
+    lift_orange_height_weight: float = 1.5
     # margin above target orange cube height for lifting it
     vertical_lift_margin: float = 0.03 # 3 cm
-    # scaled reward for moving toward the safe hover position above blue
-    move_toward_hover_progress_weight: float = 2.0
-    # scaled reward for lowering toward the final stack after alignment
-    lower_toward_stack_progress_weight: float = 2.0
-    # scaled reward for horizontally aligning the two cube centers
-    stack_alignment_progress_weight: float = 5.0
+    # Stacking phases are disabled during the pickup-only curriculum.
+    move_toward_hover_progress_weight: float = 0.0
+    lower_toward_stack_progress_weight: float = 0.0
+    stack_alignment_progress_weight: float = 0.0
     successful_stack_reward: float = 100.0
-    dropped_cube_penalty: float = -10.0
+    dropped_cube_penalty: float = 0 # CHANGE TO NEG LATER
     # penatly when the IK can't solve the intended gripper location. likely means the orientation of the arms is in a weird shape
-    ik_failure_penalty: float = -1.0
-    action_magnitude_penalty_weight: float = -0.01
-    # small one-time cost whenever the persistent gripper target switches
-    gripper_state_change_penalty: float = -0.01
-    # discourage a close attempt that does not reach both jaw pads
-    unproductive_close_penalty: float = -0.05
-    # time allowed for the physical jaws to close before judging the attempt
-    close_contact_grace_period: float = 0.25
+    ik_failure_penalty: float = 0
+    action_magnitude_penalty_weight: float = 0
+    # signed shaping value whenever the persistent gripper target switches
+    gripper_state_change_penalty: float = 0 # TEMP
+    # per-action penalty while the gripper is closed before the pregrasp
+    # waypoint, unless both jaws already contact orange
+    unproductive_close_penalty: float = -0.001
 
     # CONCERNS
     # policy may be rewarded to pick up the orange cube but not drop it if the rewards for picking it up are too high
@@ -47,15 +88,19 @@ class StackRewardConfig:
     def __post_init__(self) -> None:
         nonnegative_values = (
             self.approach_orange_progress_weight,
+            self.approach_orange_height_offset,
+            self.approach_orange_waypoint_tolerance,
+            self.approach_orange_waypoint_reward,
+            self.approach_orange_capture_radius,
             self.grasp_candidate_reward,
             self.grasp_reward,
-            self.lift_orange_progress_weight,
+            self.hold_orange_duration_weight,
+            self.lift_orange_height_weight,
             self.vertical_lift_margin,
             self.move_toward_hover_progress_weight,
             self.lower_toward_stack_progress_weight,
             self.stack_alignment_progress_weight,
             self.successful_stack_reward,
-            self.close_contact_grace_period,
         )
         if not all(
             math.isfinite(value) and value >= 0.0
@@ -70,7 +115,6 @@ class StackRewardConfig:
             self.dropped_cube_penalty,
             self.ik_failure_penalty,
             self.action_magnitude_penalty_weight,
-            self.gripper_state_change_penalty,
             self.unproductive_close_penalty,
         )
         if not all(
@@ -78,6 +122,13 @@ class StackRewardConfig:
             for value in penalty_values
         ):
             raise ValueError("penalties must be finite and nonpositive.")
+
+        signed_gripper_shaping_values = (self.gripper_state_change_penalty,)
+        if not all(
+            math.isfinite(value)
+            for value in signed_gripper_shaping_values
+        ):
+            raise ValueError("gripper shaping values must be finite.")
 
 
 @dataclass(frozen=True)
@@ -92,6 +143,16 @@ def _has_bilateral_jaw_contact(state: StateSnapshot) -> bool:
     return bool(state["orange_touches_fixed_jaw"]) and bool(
         state["orange_touches_moving_jaw"]
     )
+
+
+def _approach_closeness_potential(distance: float) -> float:
+    """Return closeness potential for a target distance in meters.
+
+    Within 30 cm, the marginal reward for reducing distance is
+    ``5 * 30 * (distance - 0.3) ** 4``. At and beyond 30 cm, the
+    potential is flat so approach motion receives no shaping reward.
+    """
+    return 30.0 * max(0.3 - distance, 0.0) ** 5
 
 
 def _stack_target_distance(
@@ -159,17 +220,23 @@ class StackRewardCalculator:
         # i feel that the environment should own these values.
         # TODO: move this so that the environment owns the values
         self._initial_orange_height: float | None = None
+        self._orange_pregrasp_waypoint_reached = False
         self._bilateral_contact_seen = False
         self._confirmed_grasp_seen = False
         self._drop_penalized = False
         self._safe_lift_completed = False
         self._hover_alignment_completed = False
-        self._close_attempt_start_time: float | None = None
+        self._open_gripper_target: float | None = None
 
     @property
     def confirmed_grasp_seen(self) -> bool:
         """Return whether this episode has contained a confirmed grasp."""
         return self._confirmed_grasp_seen
+
+    @property
+    def orange_pregrasp_waypoint_reached(self) -> bool:
+        """Return whether the gripper reached the overhead waypoint."""
+        return self._orange_pregrasp_waypoint_reached
 
     @property
     def safe_lift_completed(self) -> bool:
@@ -181,10 +248,10 @@ class StackRewardCalculator:
         """Return whether the current attempt aligned at the hover target."""
         return self._hover_alignment_completed
 
-    def task_succeeded(self, physical_stack_succeeded: bool) -> bool:
-        """Require both the final stack and an earlier genuine grasp."""
+    def task_succeeded(self, environment_succeeded: bool) -> bool:
+        """Require the environment and reward tracker to confirm success."""
         return bool(
-            physical_stack_succeeded
+            environment_succeeded
             and self._confirmed_grasp_seen
         )
 
@@ -198,6 +265,7 @@ class StackRewardCalculator:
             raise ValueError("initial orange position must be finite.")
 
         self._initial_orange_height = float(orange_position[2])
+        self._orange_pregrasp_waypoint_reached = False
         self._bilateral_contact_seen = _has_bilateral_jaw_contact(
             initial_state
         )
@@ -207,7 +275,10 @@ class StackRewardCalculator:
         self._drop_penalized = False
         self._safe_lift_completed = False
         self._hover_alignment_completed = False
-        self._close_attempt_start_time = None
+        initial_gripper_target = float(initial_state["gripper_target"])
+        if not math.isfinite(initial_gripper_target):
+            raise ValueError("initial gripper target must be finite.")
+        self._open_gripper_target = initial_gripper_target
 
     def calculate(
         self,
@@ -240,6 +311,9 @@ class StackRewardCalculator:
         applied_action = np.clip(requested_action, -1.0, 1.0)
 
         current_state = action_result.state
+        # The environment defines gripper_position as the rigid
+        # ``gripperframe`` site used by Cartesian control. Opening or closing
+        # the moving jaw alone therefore cannot change approach progress.
         previous_gripper_position = np.asarray(
             previous_state["gripper_position"],
             dtype=float,
@@ -285,6 +359,13 @@ class StackRewardCalculator:
         current_confirmed_grasp_seen = bool(
             current_state["confirmed_grasp_seen"]
         )
+        current_grasp_hold_time = float(
+            current_state["orange_grasp_hold_time"]
+        )
+        if not math.isfinite(current_grasp_hold_time):
+            raise ValueError("orange grasp hold time must be finite.")
+        if current_grasp_hold_time < 0.0:
+            raise ValueError("orange grasp hold time must be nonnegative.")
         currently_confirmed_grasp = (
             current_bilateral_contact
             and not bool(current_state["orange_touches_table"])
@@ -295,11 +376,13 @@ class StackRewardCalculator:
             self._hover_alignment_completed
         )
 
-        components = {
+        reward_components = {
             "approach_orange_progress": 0.0,
+            "approach_orange_waypoint": 0.0,
             "grasp_candidate": 0.0,
             "grasp": 0.0,
-            "lift_orange_progress": 0.0,
+            "hold_orange_duration": 0.0,
+            "lift_orange_height": 0.0,
             "move_toward_hover_progress": 0.0,
             "lower_toward_stack_progress": 0.0,
             "stack_alignment_progress": 0.0,
@@ -312,26 +395,66 @@ class StackRewardCalculator:
         }
 
         if not grasp_seen_before_transition:
+            approach_offset = np.zeros(3, dtype=float)
+            if not self._orange_pregrasp_waypoint_reached:
+                approach_offset[2] = (
+                    self.config.approach_orange_height_offset
+                )
+            previous_approach_target = (
+                previous_orange_position + approach_offset
+            )
+            current_approach_target = (
+                current_orange_position + approach_offset
+            )
             previous_distance = np.linalg.norm(
-                previous_gripper_position - previous_orange_position
+                previous_gripper_position - previous_approach_target
             )
             current_distance = np.linalg.norm(
-                current_gripper_position - current_orange_position
+                current_gripper_position - current_approach_target
             )
-            components["approach_orange_progress"] = float(
-                self.config.approach_orange_progress_weight
-                * (previous_distance - current_distance)
+            within_capture_radius = (
+                self._orange_pregrasp_waypoint_reached
+                and current_distance
+                <= self.config.approach_orange_capture_radius
             )
+            # Suppress only approach shaping, including the step entering the
+            # capture region. Contact, grasp, lift, and hold rewards below
+            # continue to guide the pickup without demanding exact centering.
+            if not current_bilateral_contact and not within_capture_radius:
+                reward_components["approach_orange_progress"] = float(
+                    self.config.approach_orange_progress_weight
+                    * (
+                        _approach_closeness_potential(current_distance)
+                        - _approach_closeness_potential(previous_distance)
+                    )
+                )
+
+            if not self._orange_pregrasp_waypoint_reached:
+                current_pregrasp_target = current_orange_position.copy()
+                current_pregrasp_target[2] += (
+                    self.config.approach_orange_height_offset
+                )
+                current_pregrasp_distance = np.linalg.norm(
+                    current_gripper_position - current_pregrasp_target
+                )
+                if (
+                    current_pregrasp_distance
+                    <= self.config.approach_orange_waypoint_tolerance
+                ):
+                    reward_components["approach_orange_waypoint"] = (
+                        self.config.approach_orange_waypoint_reward
+                    )
+                    self._orange_pregrasp_waypoint_reached = True
 
         if current_bilateral_contact and not self._bilateral_contact_seen:
-            components["grasp_candidate"] = (
+            reward_components["grasp_candidate"] = (
                 self.config.grasp_candidate_reward
             )
             self._bilateral_contact_seen = True
 
         # grasp has occured in the state but hasn't been processed by the calculator yet
         if current_confirmed_grasp_seen and not self._confirmed_grasp_seen:
-            components["grasp"] = self.config.grasp_reward
+            reward_components["grasp"] = self.config.grasp_reward
             self._confirmed_grasp_seen = True
 
         # A confirmed re-grasp starts a new opportunity to penalize a later
@@ -339,33 +462,24 @@ class StackRewardCalculator:
         if currently_confirmed_grasp and self._drop_penalized:
             self._drop_penalized = False
 
-        # Each phase uses signed progress so reversing an earlier movement
-        # pays back its shaping reward. Lift remains active through hover
-        # alignment, but stops during placement so intended descent is not
-        # penalized.
-        transport_active = self._confirmed_grasp_seen
-        if (
-            transport_active
-            and not hover_alignment_completed_before_transition
-        ):
-            initial_height = self._initial_orange_height
-            maximum_lift = (
-                self.success_config.expected_vertical_center_distance
-                + self.config.vertical_lift_margin
+        # Pickup shaping is state based: an uninterrupted hold becomes more
+        # valuable over time, and holding orange higher is always better.
+        # These rewards are intentionally not clawed back after a later drop.
+        if currently_confirmed_grasp:
+            capped_hold_time = min(
+                current_grasp_hold_time,
+                MINIMUM_HOLD_TIME,
             )
-            previous_lift_potential = np.clip(
-                previous_orange_position[2] - initial_height,
+            reward_components["hold_orange_duration"] = float(
+                self.config.hold_orange_duration_weight
+                * capped_hold_time
+            )
+            lift_height = max(
+                current_orange_position[2] - self._initial_orange_height,
                 0.0,
-                maximum_lift,
             )
-            current_lift_potential = np.clip(
-                current_orange_position[2] - initial_height,
-                0.0,
-                maximum_lift,
-            )
-            components["lift_orange_progress"] = float(
-                self.config.lift_orange_progress_weight
-                * (current_lift_potential - previous_lift_potential)
+            reward_components["lift_orange_height"] = float(
+                self.config.lift_orange_height_weight * lift_height
             )
 
         previous_alignment_error = _horizontal_alignment_error(
@@ -377,7 +491,7 @@ class StackRewardCalculator:
             current_blue_position,
         )
         if safe_lift_completed_before_transition:
-            components["stack_alignment_progress"] = float(
+            reward_components["stack_alignment_progress"] = float(
                 self.config.stack_alignment_progress_weight
                 * (previous_alignment_error - current_alignment_error)
             )
@@ -398,7 +512,7 @@ class StackRewardCalculator:
                 self.success_config.expected_vertical_center_distance,
                 self.config.vertical_lift_margin,
             )
-            components["move_toward_hover_progress"] = float(
+            reward_components["move_toward_hover_progress"] = float(
                 self.config.move_toward_hover_progress_weight
                 * (previous_hover_distance - current_hover_distance)
             )
@@ -414,7 +528,7 @@ class StackRewardCalculator:
                 current_blue_position,
                 self.success_config.expected_vertical_center_distance,
             )
-            components["lower_toward_stack_progress"] = float(
+            reward_components["lower_toward_stack_progress"] = float(
                 self.config.lower_toward_stack_progress_weight
                 * (previous_stack_distance - current_stack_distance)
             )
@@ -441,7 +555,7 @@ class StackRewardCalculator:
             drop_detected
             and not self._drop_penalized
         ):
-            components["dropped_cube"] = self.config.dropped_cube_penalty
+            reward_components["dropped_cube"] = self.config.dropped_cube_penalty
             self._drop_penalized = True
 
         # A recoverable tabletop drop starts a new transport attempt. The
@@ -471,64 +585,44 @@ class StackRewardCalculator:
                 self._safe_lift_completed = True
 
         if not action_result.ik_result.position_converged:
-            components["ik_failure"] = self.config.ik_failure_penalty
+            reward_components["ik_failure"] = self.config.ik_failure_penalty
 
         # The fourth action switches or retains a persistent gripper target;
         # its magnitude is not physical motion. Penalize only Cartesian
         # motion deltas here.
-        components["action_magnitude"] = float(
+        reward_components["action_magnitude"] = float(
             self.config.action_magnitude_penalty_weight
             * np.mean(np.square(applied_action[:3]))
         )
 
         previous_gripper_target = float(previous_state["gripper_target"])
         current_gripper_target = float(current_state["gripper_target"])
+        if not math.isfinite(current_gripper_target):
+            raise ValueError("current gripper target must be finite.")
         if previous_gripper_target != current_gripper_target:
-            components["gripper_state_change"] = (
+            reward_components["gripper_state_change"] = (
                 self.config.gripper_state_change_penalty
             )
 
-        closed_during_transition = (
-            current_gripper_target < previous_gripper_target
+        assert self._open_gripper_target is not None
+        gripper_target_is_closed = (
+            current_gripper_target < self._open_gripper_target
         )
-        opened_during_transition = (
-            current_gripper_target > previous_gripper_target
-        )
-        previous_time = float(previous_state["time"])
-        current_time = float(current_state["time"])
-        if closed_during_transition:
-            # The target changes before this transition's physics steps, so
-            # the attempt begins at the previous state's simulation time.
-            self._close_attempt_start_time = previous_time
-
-        if self._close_attempt_start_time is not None:
-            close_attempt_duration = (
-                current_time - self._close_attempt_start_time
+        if (
+            not self._orange_pregrasp_waypoint_reached
+            and gripper_target_is_closed
+            and not current_bilateral_contact
+        ):
+            reward_components["unproductive_close"] = (
+                self.config.unproductive_close_penalty
             )
-            grace_period_reached = (
-                close_attempt_duration
-                >= self.config.close_contact_grace_period
-            )
-            contact_within_grace_period = (
-                current_bilateral_contact
-                and close_attempt_duration
-                <= self.config.close_contact_grace_period
-            )
-
-            if contact_within_grace_period:
-                self._close_attempt_start_time = None
-            elif opened_during_transition or grace_period_reached:
-                components["unproductive_close"] = (
-                    self.config.unproductive_close_penalty
-                )
-                self._close_attempt_start_time = None
 
         if task_succeeded:
-            components["successful_stack"] = (
+            reward_components["successful_stack"] = (
                 self.config.successful_stack_reward
             )
 
         return RewardResult(
-            total=float(sum(components.values())),
-            components=components,
+            total=float(sum(reward_components.values())),
+            components=reward_components,
         )
