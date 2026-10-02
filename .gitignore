@@ -10,3 +10,18 @@ __pycache__/
 
 # Downloaded Models
 models/
+
+# Trained policy checkpoints
+checkpoints/
+
+# Weights & Biases local run metadata
+wandb/
+data/wandb/
+
+# Repository-local temporary verification artifacts
+.tmp/
+
+# Generated policy demonstration
+stack_demo.mp4
+
+data/
