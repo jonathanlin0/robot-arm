@@ -1,3 +1,6 @@
+# macOS folder metadata (all directories)
+.DS_Store
+
 # Local Python virtual environment
 .venv/
 
@@ -10,3 +13,18 @@ __pycache__/
 
 # Downloaded Models
 models/
+
+# Trained policy checkpoints
+checkpoints/
+
+# Weights & Biases local run metadata
+wandb/
+data/wandb/
+
+# Repository-local temporary verification artifacts
+.tmp/
+
+# Generated policy demonstration
+stack_demo.mp4
+
+data/

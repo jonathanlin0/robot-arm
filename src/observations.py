@@ -7,7 +7,8 @@ from environment import CubeStackEnvironment, StateSnapshot
 # + gripper position (3)
 # + orange position/orientation/velocity (3 + 4 + 6)
 # + blue position/orientation/velocity (3 + 4 + 6)
-PRIVILEGED_OBSERVATION_SIZE = 47
+# + orange contact with fixed/moving jaw pads (2)
+PRIVILEGED_OBSERVATION_SIZE = 49
 
 
 class PrivilegedObservationBuilder:
@@ -18,12 +19,13 @@ class PrivilegedObservationBuilder:
     1. robot joint positions
     2. robot joint velocities
     3. current actuator control targets
-    4. gripper XYZ position
+    4. rigid ``gripperframe`` Cartesian-control position
     5. orange cube XYZ position, quaternion, and free-joint velocity
     6. blue cube XYZ position, quaternion, and free-joint velocity
+    7. orange contact with the fixed and moving jaw pads
 
     Values are returned in their native simulation units without
-    normalization. Simulation time is intentionally excluded.
+    normalization. Simulation time and reward-phase flags are excluded.
     """
 
     def __init__(self, environment: CubeStackEnvironment) -> None:
@@ -43,6 +45,10 @@ class PrivilegedObservationBuilder:
                 state["blue_position"],
                 state["blue_orientation"],
                 state["blue_velocity"],
+                [
+                    float(state["orange_touches_fixed_jaw"]),
+                    float(state["orange_touches_moving_jaw"]),
+                ],
             )
         ).astype(np.float32, copy=False)
 
