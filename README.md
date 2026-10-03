@@ -170,8 +170,8 @@ Policy inference still chooses only the latest real output and retains at
 most 384 tokens. Checkpoints retain their own configured history length.
 
 Run pretraining checks with `.venv/bin/python scripts/pretrain_pickup.py --test`
-or `.venv/bin/python -m pytest test/`. The dedicated pretraining tests are in
-`test/test_pretrain_*.py`; `--smoke` still runs a small training session and
+or `.venv/bin/python -m pytest tests/test_pretrain_*.py`. The dedicated pretraining tests are in
+`tests/test_pretrain_*.py`; `--smoke` still runs a small training session and
 real simulator evaluation on the saved data.
 
 Run a fresh training session from the repository root:
