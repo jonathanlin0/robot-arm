@@ -786,7 +786,7 @@ def run_tests() -> bool:
     """Run the dedicated pretraining tests in a separate process."""
     import subprocess
 
-    test_files = sorted((REPOSITORY_ROOT / "test").glob("test_pretrain_*.py"))
+    test_files = sorted((REPOSITORY_ROOT / "tests").glob("test_pretrain_*.py"))
     result = subprocess.run(
         [sys.executable, "-m", "pytest", *(str(path) for path in test_files), "-q"],
         cwd=REPOSITORY_ROOT,
@@ -801,7 +801,7 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
     mode.add_argument("--wandb", nargs="?", const="", default=None, metavar="SWEEP_ID",
                       help="Create a Bayesian sweep, or join one with an optional existing ID.")
     mode.add_argument("--smoke", action="store_true", help="Tiny end-to-end run using at most two episodes per split.")
-    mode.add_argument("--test", action="store_true", help="Run test/test_pretrain_*.py without W&B or saved weights.")
+    mode.add_argument("--test", action="store_true", help="Run tests/test_pretrain_*.py without W&B or saved weights.")
     parser.add_argument("--data-dir", type=Path, default=None)
     parser.add_argument("--device", choices=("auto", "cpu", "mps"), default=None)
     parser.add_argument("--epochs", type=int, default=None)
