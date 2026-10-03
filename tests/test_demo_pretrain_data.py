@@ -81,15 +81,15 @@ def test_selection_accepts_one_training_demo_and_ignores_other_data(tmp_path: Pa
     assert [record["uuid"] for record in selected] == [valid["uuid"]]
 
 
-def test_selection_chooses_at_most_nine_distinct_complete_training_demos(tmp_path: Path) -> None:
-    records = [demonstration_record(identifier) for identifier in range(1, 13)]
+def test_selection_chooses_at_most_one_grid_of_distinct_complete_training_demos(tmp_path: Path) -> None:
+    records = [demonstration_record(identifier) for identifier in range(1, demo.ROLLOUT_COUNT + 4)]
     for record in records:
         save_demonstration(tmp_path, record)
 
     selected = demo.select_demonstrations(tmp_path)
 
     selected_ids = [record["uuid"] for record in selected]
-    assert len(selected_ids) == len(set(selected_ids)) == 9
+    assert len(selected_ids) == len(set(selected_ids)) == demo.ROLLOUT_COUNT
     assert set(selected_ids) <= {record["uuid"] for record in records}
     assert len(demo.select_demonstrations(tmp_path, count=3)) == 3
 
@@ -311,7 +311,7 @@ def configure_main(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, records: lis
     monkeypatch.setattr(demo, "get_worker_policy", forbid_call)
     monkeypatch.setattr(demo.PPO, "load", forbid_call)
 
-    def select(data_directory: Path, count: int = 9) -> list[dict]:
+    def select(data_directory: Path, count: int = demo.ROLLOUT_COUNT) -> list[dict]:
         calls["selection"] = (data_directory, count)
         return records
 
@@ -348,7 +348,7 @@ def test_main_renders_selected_training_data_and_pads_empty_grid_cells(
     demo.main(["--pretrain-data", "--workers", "3"])
 
     paths = demo.rollout_video_paths(tmp_path / "panels")
-    assert calls["selection"] == (tmp_path / "data", 9)
+    assert calls["selection"] == (tmp_path / "data", demo.ROLLOUT_COUNT)
     assert calls["workers"] == 2
     assert len(calls["tasks"]) == 2
     for index, task in enumerate(calls["tasks"]):

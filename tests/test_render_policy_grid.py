@@ -82,7 +82,7 @@ def test_wandb_run_id_must_be_one_safe_path_component(
         parse_arguments(["--repeat-wandb", run_id])
 
 
-@pytest.mark.parametrize("worker_count", ["0", "10", "not-an-integer"])
+@pytest.mark.parametrize("worker_count", ["0", str(ROLLOUT_COUNT + 1), "not-an-integer"])
 def test_worker_count_must_be_valid(worker_count: str) -> None:
     with pytest.raises(SystemExit):
         parse_arguments(["--workers", worker_count])
@@ -105,7 +105,7 @@ def test_temporary_rollout_directory_requires_positive_process_id() -> None:
         temporary_rollout_directory(process_id=0)
 
 
-def test_build_xstack_command_combines_nine_inputs_in_a_grid() -> None:
+def test_build_xstack_command_combines_all_inputs_in_a_grid() -> None:
     input_paths = rollout_video_paths(Path(".tmp/policy_grid_1234"))
     output_path = Path("stack_demo.mp4")
 
