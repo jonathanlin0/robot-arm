@@ -255,7 +255,13 @@ class StackRewardCalculator:
             and self._confirmed_grasp_seen
         )
 
-    def reset(self, initial_state: StateSnapshot) -> None:
+    def reset(
+        self,
+        initial_state: StateSnapshot,
+        *,
+        orange_pregrasp_waypoint_reached: bool = False, # TEMP
+        open_gripper_target: float | None = None,
+    ) -> None:
         """Reset event tracking for a newly reset simulation episode."""
         orange_position = np.asarray(
             initial_state["orange_position"],
@@ -265,7 +271,7 @@ class StackRewardCalculator:
             raise ValueError("initial orange position must be finite.")
 
         self._initial_orange_height = float(orange_position[2])
-        self._orange_pregrasp_waypoint_reached = False
+        self._orange_pregrasp_waypoint_reached = orange_pregrasp_waypoint_reached # TEMP
         self._bilateral_contact_seen = _has_bilateral_jaw_contact(
             initial_state
         )
@@ -278,7 +284,13 @@ class StackRewardCalculator:
         initial_gripper_target = float(initial_state["gripper_target"])
         if not math.isfinite(initial_gripper_target):
             raise ValueError("initial gripper target must be finite.")
-        self._open_gripper_target = initial_gripper_target
+        # Prepared episodes may start closed. Their actual initial target
+        # must not redefine which command represents an open gripper.
+        self._open_gripper_target = (
+            initial_gripper_target if open_gripper_target is None else float(open_gripper_target)
+        )
+        if not math.isfinite(self._open_gripper_target):
+            raise ValueError("open gripper target must be finite.")
 
     def calculate(
         self,

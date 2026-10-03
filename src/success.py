@@ -47,7 +47,7 @@ class StackSuccessConfig:
     vertical_center_tolerance: float = 0.005
     max_linear_speed: float = 0.01 # m/s
     max_angular_speed: float = 0.05 # rad/s
-    required_stable_time: float = 0.5 # seconds
+    required_stable_time: float = 1.0 # seconds
     floating_point_numerical_tolerance: float = 1e-12
 
     def __post_init__(self) -> None:

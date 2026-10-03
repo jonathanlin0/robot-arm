@@ -6,12 +6,20 @@ import numpy as np
 from numpy.typing import ArrayLike
 
 from gripper import jaw_tip_midpoint
+from kinematics import (
+    DEFAULT_TOOL_AXIS_TOLERANCE,
+    DEFAULT_TOOL_YAW_TOLERANCE,
+    IKConvergenceError,
+    solve_position_and_tool_axis_ik,
+    solve_position_ik,
+)
 from randomization import (
     BLUE_CUBE_JOINT,
     ORANGE_CUBE_JOINT,
     CubeSpawnConfig,
     randomize_cube_placements,
 )
+from robot_constants import ARM_JOINT_NAMES, ROBOT_JOINT_NAMES
 from success import (
     StackSuccessConfig,
     orange_gripper_pad_contacts,
@@ -21,17 +29,11 @@ from success import (
 
 
 DEFAULT_SCENE_PATH = Path("scenes/so101_two_cube_stack.xml")
+# World-space gripperframe XYZ in metres, shared by all home-start episodes.
+DEFAULT_START_POSITION = (0.20, 0.00, 0.05)
 
-ROBOT_JOINT_NAMES = (
-    "shoulder_pan",
-    "shoulder_lift",
-    "elbow_flex",
-    "wrist_flex",
-    "wrist_roll",
-    "gripper",
-)
-ARM_JOINT_NAMES = ROBOT_JOINT_NAMES[:-1]
 DEFAULT_OPEN_GRIPPER_POSITION = 1.0
+# Seed for the start-position IK solve; the gripper remains open at reset.
 DEFAULT_JOINT_POSITIONS = np.array(
     [0.0, 0.0, 0.0, 0.0, 0.0, DEFAULT_OPEN_GRIPPER_POSITION]
 )
@@ -52,12 +54,29 @@ class CubeStackEnvironment:
         seed: int | None = None,
         spawn_config: CubeSpawnConfig | None = None,
         success_config: StackSuccessConfig | None = None,
+        start_position: ArrayLike | None = None,
+        start_position_half_range: ArrayLike = (0.0, 0.0, 0.0),
+        require_downward: bool = True,
+        target_tool_yaw: float | None = 0.0,
+        tool_yaw_tolerance: float = DEFAULT_TOOL_YAW_TOLERANCE,
+        orange_waypoint_height_offset: float = 0.08,
+        orange_waypoint_tolerance: float = 0.01,
     ) -> None:
         self.scene_path = Path(scene_path).resolve()
         self.model = mujoco.MjModel.from_xml_path(str(self.scene_path))
         self.data = mujoco.MjData(self.model)
         self.spawn_config = spawn_config or CubeSpawnConfig()
         self.success_config = success_config or StackSuccessConfig()
+        self.start_position = np.array(
+            DEFAULT_START_POSITION if start_position is None else start_position,
+            dtype=float,
+        )
+        self.start_position_half_range = np.array(start_position_half_range, dtype=float)
+        self.require_downward = require_downward
+        self.target_tool_yaw = target_tool_yaw
+        self.tool_yaw_tolerance = tool_yaw_tolerance
+        self.orange_waypoint_height_offset = orange_waypoint_height_offset
+        self.orange_waypoint_tolerance = orange_waypoint_tolerance
         self.rng = np.random.default_rng(seed)
         self._stack_stable_time = 0.0
         self._stack_success = False
@@ -110,10 +129,77 @@ class CubeStackEnvironment:
             self._joint_target_lower_bounds[action_index] = lower_bound
             self._joint_target_upper_bounds[action_index] = upper_bound
 
+        # Fixed starts reuse this solution; randomized starts solve at reset.
+        self._start_joint_positions = self._solve_start_joint_positions(self.start_position)
+
+    def _solve_start_joint_positions(self, position: np.ndarray) -> np.ndarray:
+        """Find an open-claw reset pose without advancing live physics."""
+        start_ik = solve_position_ik(
+            self.model,
+            DEFAULT_JOINT_POSITIONS[:-1],
+            position,
+            tolerance=1e-6,
+        )
+        if not start_ik.converged and not self.require_downward:
+            raise ValueError(
+                f"Could not reach start position {position.tolist()}: "
+                f"IK position error is {start_ik.position_error:.6f} m."
+            )
+        if self.require_downward:
+            # Use position-only IK as a seed, then require the same downward
+            # approach and jaw alignment as actions before installing the pose.
+            start_ik = solve_position_and_tool_axis_ik(
+                self.model, start_ik.joint_positions, position,
+                position_tolerance=1e-6,
+                target_tool_yaw=self.target_tool_yaw,
+                tool_yaw_tolerance=self.tool_yaw_tolerance,
+                require_downward=True,
+            )
+            if not (start_ik.position_converged and start_ik.tool_axis_converged
+                    and start_ik.tool_yaw_converged):
+                raise IKConvergenceError({
+                    "stage": "reset", "episode_step": 0,
+                    "require_downward": True,
+                    "requested_target_position": position.tolist(),
+                    "target_tool_yaw": self.target_tool_yaw,
+                    "position_tolerance": 1e-6,
+                    "tool_axis_tolerance": DEFAULT_TOOL_AXIS_TOLERANCE,
+                    "tool_yaw_tolerance": self.tool_yaw_tolerance,
+                    "attempts": [{
+                        "target_position": position.tolist(),
+                        "joint_positions": start_ik.joint_positions.tolist(),
+                        "position_converged": bool(start_ik.position_converged),
+                        "tool_axis_converged": bool(start_ik.tool_axis_converged),
+                        "tool_yaw_converged": bool(start_ik.tool_yaw_converged),
+                        "position_error": float(start_ik.position_error),
+                        "tool_axis_error": float(start_ik.tool_axis_error),
+                        "tool_yaw_error": float(start_ik.tool_yaw_error),
+                        "best_candidate_iteration": start_ik.iterations,
+                        "total_iterations": start_ik.total_iterations,
+                    }],
+                })
+        # this is just for setting the claw joint
+        joint_positions = DEFAULT_JOINT_POSITIONS.copy()
+        joint_positions[:-1] = start_ik.joint_positions
+        return joint_positions
+
     def reset(self, *, seed: int | None = None) -> StateSnapshot:
-        """Reset all state, randomize cube placements, and return a snapshot."""
+        """Start fresh at the configured home pose and randomize the cubes."""
         if seed is not None:
             self.rng = np.random.default_rng(seed)
+
+        start_joint_positions = self._start_joint_positions
+        if np.any(self.start_position_half_range > 0.0):
+            sampled_position = self.rng.uniform(
+                self.start_position - self.start_position_half_range,
+                self.start_position + self.start_position_half_range,
+            )
+            try:
+                start_joint_positions = self._solve_start_joint_positions(sampled_position)
+            except ValueError as error:
+                # The generator can discard this attempt and retry with a
+                # new UUID; never silently substitute the fixed center.
+                raise RuntimeError(f"Randomized start failed: {error}") from error
 
         self._stack_stable_time = 0.0
         self._stack_success = False
@@ -126,7 +212,7 @@ class CubeStackEnvironment:
 
         for joint_name, joint_position in zip(
             ROBOT_JOINT_NAMES,
-            DEFAULT_JOINT_POSITIONS,
+            start_joint_positions,
             strict=True,
         ):
             self.data.joint(joint_name).qpos[0] = joint_position
@@ -134,7 +220,7 @@ class CubeStackEnvironment:
         # match the actuator targets to the reset pose so the robot does not
         # immediately try to move away from it on the first physics step.
         self.data.ctrl[self._action_idx_to_actuator_ctrl_idx] = (
-            DEFAULT_JOINT_POSITIONS
+            start_joint_positions
         )
 
         randomize_cube_placements(
@@ -176,9 +262,23 @@ class CubeStackEnvironment:
         )
 
     def is_success(self) -> bool:
-        """Return whether orange was continuously held for the required time."""
-        # return self._stack_success
-        return self.get_hold_time() >= MINIMUM_HOLD_TIME
+        """Return whether a released stack stayed stable after a valid grasp."""
+        return self._stack_success and not self.is_failure()
+
+        # Previous pickup-only success condition:
+        # hold_time = self.get_hold_time()
+        # Physics time accumulates floating-point timesteps; exactly two
+        # seconds can otherwise compare a few ulps below the threshold.
+        # return hold_time >= MINIMUM_HOLD_TIME
+        # Previous waypoint-only success condition:
+        # waypoint_position = self.data.body("orange_cube").xpos.copy()
+        # waypoint_position[2] += self.orange_waypoint_height_offset
+        # return bool(
+        #     not self.is_failure()
+        #     and np.linalg.norm(
+        #         self.data.site("gripperframe").xpos - waypoint_position
+        #     ) <= self.orange_waypoint_tolerance
+        # )
 
     def is_failure(self) -> bool:
         """Return whether an unrecoverable failure occurred since reset.
@@ -252,12 +352,7 @@ class CubeStackEnvironment:
             self._stack_stable_time + self.model.opt.timestep,
             self.success_config.required_stable_time,
         )
-        if math.isclose(
-            self._stack_stable_time,
-            self.success_config.required_stable_time,
-            rel_tol=0.0,
-            abs_tol=1e-12,
-        ):
+        if self._stack_stable_time >= self.success_config.required_stable_time:
             self._stack_success = True
 
     def _update_pickup_progress(self) -> None:

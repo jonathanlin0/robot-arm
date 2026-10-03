@@ -8,8 +8,7 @@ from environment import CubeStackEnvironment, StateSnapshot
 # + orange position/orientation/velocity (3 + 4 + 6)
 # + blue position/orientation/velocity (3 + 4 + 6)
 # + orange contact with fixed/moving jaw pads (2)
-# + orange pregrasp waypoint reached (1)
-PRIVILEGED_OBSERVATION_SIZE = 50
+PRIVILEGED_OBSERVATION_SIZE = 49
 
 
 class PrivilegedObservationBuilder:
@@ -24,21 +23,15 @@ class PrivilegedObservationBuilder:
     5. orange cube XYZ position, quaternion, and free-joint velocity
     6. blue cube XYZ position, quaternion, and free-joint velocity
     7. orange contact with the fixed and moving jaw pads
-    8. whether the orange pregrasp waypoint has been reached
 
     Values are returned in their native simulation units without
-    normalization. Simulation time is intentionally excluded.
+    normalization. Simulation time and reward-phase flags are excluded.
     """
 
     def __init__(self, environment: CubeStackEnvironment) -> None:
         self.environment = environment
 
-    def build(
-        self,
-        state: StateSnapshot,
-        *,
-        orange_pregrasp_waypoint_reached: bool,
-    ) -> np.ndarray:
+    def build(self, state: StateSnapshot) -> np.ndarray:
         """Return one flat float32 privileged observation."""
         observation = np.concatenate(
             (
@@ -55,7 +48,6 @@ class PrivilegedObservationBuilder:
                 [
                     float(state["orange_touches_fixed_jaw"]),
                     float(state["orange_touches_moving_jaw"]),
-                    float(orange_pregrasp_waypoint_reached),
                 ],
             )
         ).astype(np.float32, copy=False)
