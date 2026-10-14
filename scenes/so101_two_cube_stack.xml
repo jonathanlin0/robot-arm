@@ -1,4 +1,4 @@
-<mujoco model="SO-101 two-cube stacking">
+<mujoco model="SO-101 stacking inside four walls">
   <include file="../models/so101/so101.xml"/>
 
   <!-- Resolve mesh paths from this project-owned scene directory. -->
@@ -7,7 +7,7 @@
   <visual>
     <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
     <rgba haze="0.15 0.25 0.35 1"/>
-    <global azimuth="160" elevation="-20"/>
+    <global azimuth="160" elevation="-20" offwidth="1024" offheight="1024"/>
   </visual>
 
   <asset>
@@ -17,12 +17,23 @@
   <worldbody>
     <light pos="0 0 3.5" dir="0 0 -1" directional="true"/>
 
-    <!-- The tabletop surface is at z=0, level with the robot base. -->
+    <!-- The included arm's base stays at (0, 0, 0). Tabletop is z=0. -->
     <geom name="table" type="box" pos="0.25 0 -0.025" size="0.45 0.35 0.025"
       friction="0.8 0.005 0.0001" rgba="0.45 0.35 0.25 1"/>
 
-    <!-- MuJoCo box sizes are half-extents, so these are 4 cm cubes. -->
-    <!-- Half-extend just means it's measured by distance from center to edge -->
+    <!-- Inside bounds: x=[-0.05, 0.45], y=[-0.25, 0.25] metres.
+         Walls are 2 mm thick and 5 cm tall, extending outward from the bounds.
+         MuJoCo box sizes are half-extents. X walls also cover the corners. -->
+    <geom name="wall_x_min" type="box" pos="-0.051 0 0.025" size="0.001 0.252 0.025"
+      friction="0.8 0.005 0.0001" rgba="0.18 0.20 0.23 1"/>
+    <geom name="wall_x_max" type="box" pos="0.451 0 0.025" size="0.001 0.252 0.025"
+      friction="0.8 0.005 0.0001" rgba="0.18 0.20 0.23 1"/>
+    <geom name="wall_y_min" type="box" pos="0.20 -0.251 0.025" size="0.25 0.001 0.025"
+      friction="0.8 0.005 0.0001" rgba="0.18 0.20 0.23 1"/>
+    <geom name="wall_y_max" type="box" pos="0.20 0.251 0.025" size="0.25 0.001 0.025"
+      friction="0.8 0.005 0.0001" rgba="0.18 0.20 0.23 1"/>
+
+    <!-- Same 4 cm, 40 g cubes and initial placements as the previous scene. -->
     <body name="orange_cube" pos="0.30 -0.08 0.02">
       <freejoint name="orange_cube_joint"/>
       <geom name="orange_cube_geom" type="box" size="0.02 0.02 0.02" mass="0.04"
@@ -34,5 +45,13 @@
       <geom name="blue_cube_geom" type="box" size="0.02 0.02 0.02" mass="0.04"
         friction="0.8 0.005 0.0001" rgba="0.05 0.25 1.0 1"/>
     </body>
+
+    <!-- External perspective camera at the upper-right inside corner, at wall height.
+         Aim at the tabletop centre (0.20, 0, 0). MuJoCo cameras look along local -Z.
+         Local X = normalize((-1, 1, 0)); local Y = normalize((-1, -1, 10)),
+         giving local -Z = normalize((-5, -5, -1)), towards that centre. -->
+    <camera name="external" mode="fixed" pos="0.45 0.25 0.05"
+      xyaxes="-0.707106781186548 0.707106781186548 0 -0.099014754297667 -0.099014754297667 0.990147542976674"
+      projection="perspective" fovy="90"/>
   </worldbody>
 </mujoco>
