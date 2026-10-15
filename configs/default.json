@@ -1,0 +1,231 @@
+{
+  "vision_model": {
+    "adapter_kernel_size": 3,
+    "backbone_weights": "IMAGENET1K_V2",
+    "mlp_hidden_layers": 1,
+    "mlp_hidden_dim": 2048,
+    "dropout": 0.1
+  },
+  "action_policy": {
+    "history_length": 384,
+    "transformer": {
+      "embedding_dim": 160,
+      "feedforward_dim": 512,
+      "heads": 4,
+      "layers": 4,
+      "dropout": 0.0
+    },
+    "mlp_hidden_dims": [
+      128,
+      128
+    ],
+    "action_std": 0.05,
+    "deterministic": true
+  },
+  "training": {
+    "vision": {
+      "randaugment": {
+        "magnitude": 5,
+        "num_ops": 2
+      },
+      "learning_rate": 0.0001,
+      "weight_decay": 0.0001,
+      "batch_size": 8,
+      "epochs": 100,
+      "seed": 42,
+      "num_workers": 0,
+      "device": "auto",
+      "validation_interval": 10,
+      "data_dir": "data/vision",
+      "checkpoint_path": "checkpoints/vision/default.pt",
+      "optimizer_betas": [
+        0.9,
+        0.999
+      ],
+      "optimizer_eps": 1e-08,
+      "shuffle_train": true,
+      "pin_memory": false
+    },
+    "action": {
+      "learning_rate": 0.0001,
+      "weight_decay": 0.0001,
+      "batch_size": 16,
+      "epochs": 400,
+      "seed": 42,
+      "num_workers": 0,
+      "device": "auto",
+      "validation_interval": 10,
+      "data_dir": "data/action",
+      "checkpoint_path": "checkpoints/action/default.pt",
+      "stride": 256,
+      "optimizer_betas": [
+        0.9,
+        0.999
+      ],
+      "optimizer_eps": 1e-08,
+      "shuffle_train": true,
+      "pin_memory": false
+    }
+  },
+  "environment": {
+    "scene_path": "scenes/so101_two_cube_stack.xml",
+    "episode_seconds": 45.0,
+    "vision_data": {
+      "sequences": 100,
+      "sample_interval_steps": 20,
+      "train_fraction": 0.8,
+      "joint_step_std": 0.025,
+      "cube_x_range": [
+        0.25,
+        0.35
+      ],
+      "cube_y_range": [
+        -0.1,
+        0.1
+      ],
+      "camera_position_jitter": [
+        0.01,
+        0.01,
+        0.01
+      ],
+      "camera_angle_jitter": 0.15,
+      "fov_range": [
+        65.0,
+        100.0
+      ],
+      "light_position_jitter": [
+        0.1,
+        0.1,
+        0.1
+      ],
+      "light_intensity_range": [
+        0.3,
+        0.9
+      ],
+      "ambient_intensity_range": [
+        0.2,
+        0.8
+      ],
+      "light_saturation_range": [
+        0.0,
+        0.08
+      ],
+      "shadows_enabled": true,
+      "wall_brightness_range": [
+        0.08,
+        0.9
+      ],
+      "wall_saturation_range": [
+        0.0,
+        0.096
+      ],
+      "image_noise_std": 2.0,
+      "blur_probability": 0.1,
+      "exposure_range": [
+        0.8,
+        1.2
+      ],
+      "white_balance_gain_range": [
+        0.9,
+        1.1
+      ],
+      "gamma_range": [
+        0.9,
+        1.1
+      ],
+      "focus_distance_range": [
+        0.15,
+        0.6
+      ],
+      "focus_blur_scale": 0.6,
+      "focus_blur_max_sigma": 2.0,
+      "motion_blur_probability": 0.25,
+      "motion_blur_exposure_range": [
+        0.002,
+        0.012
+      ],
+      "motion_blur_samples": 3,
+      "lens_distortion_range": [
+        -0.08,
+        0.08
+      ],
+      "texture_contrast_range": [
+        0.0,
+        0.2
+      ],
+      "cube_height_range": [
+        0.02,
+        0.16
+      ],
+      "cube_pose_modes": [
+        "ground",
+        "elevated",
+        "stacked",
+        "task",
+        "carry"
+      ],
+      "cube_pose_mode_probabilities": [
+        0.1,
+        0.1,
+        0.1,
+        0.6,
+        0.1
+      ],
+      "task": {
+        "waypoint_height": 0.08,
+        "grasp_offset": [
+          -0.007,
+          0.0,
+          0.005
+        ],
+        "lift_height": 0.1,
+        "position_tolerance": 0.004,
+        "phase_timeout_seconds": 6.0,
+        "close_seconds": 0.75,
+        "release_seconds": 0.5,
+        "settle_seconds": 0.5,
+        "drop_after_seconds": 1.0
+      },
+      "carry": {
+        "x_range": [0.25, 0.35],
+        "y_range": [-0.1, 0.1],
+        "z_range": [0.08, 0.13]
+      },
+      "minimum_cube_separation": 0.06
+    }
+  },
+  "cameras": {
+    "fps": 30.0,
+    "maximum_frame_age_seconds": 1.0
+  },
+  "cartesian_controller": {
+    "maximum_position_delta": 0.0025,
+    "closed_gripper_target": -0.1,
+    "open_gripper_target": 1.0,
+    "close_gripper_command_threshold": -0.5,
+    "open_gripper_command_threshold": 0.5,
+    "target_tool_axis": [
+      0.0,
+      0.0,
+      -1.0
+    ],
+    "require_downward": true,
+    "target_tool_yaw": 0.0,
+    "position_tolerance": 0.001,
+    "tool_axis_tolerance": 1.7453292519943295,
+    "tool_yaw_tolerance": 0.017453292519943295,
+    "ik_max_iterations": 100,
+    "ik_damping": 0.001,
+    "ik_max_joint_step": 0.2,
+    "backtracking_scales": [
+      1.0,
+      0.5,
+      0.25,
+      0.125
+    ],
+    "orientation_weight": 0.05
+  },
+  "loop": {
+    "control_hz": 20.0
+  }
+}

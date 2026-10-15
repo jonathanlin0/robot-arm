@@ -15,22 +15,25 @@
   </asset>
 
   <worldbody>
-    <light pos="0 0 3.5" dir="0 0 -1" directional="true"/>
+    <!-- Invisible target at the center of the enclosed tabletop. -->
+    <body name="workspace_center" pos="0.20 0 0"/>
+    <light name="overhead" pos="0 0 1.524" mode="targetbody" target="workspace_center"
+      directional="false" castshadow="true"/>
 
     <!-- The included arm's base stays at (0, 0, 0). Tabletop is z=0. -->
     <geom name="table" type="box" pos="0.25 0 -0.025" size="0.45 0.35 0.025"
       friction="0.8 0.005 0.0001" rgba="0.45 0.35 0.25 1"/>
 
     <!-- Inside bounds: x=[-0.05, 0.45], y=[-0.25, 0.25] metres.
-         Walls are 2 mm thick and 5 cm tall, extending outward from the bounds.
+         Walls are 2 mm thick and 50 cm tall, extending outward from the bounds.
          MuJoCo box sizes are half-extents. X walls also cover the corners. -->
-    <geom name="wall_x_min" type="box" pos="-0.051 0 0.025" size="0.001 0.252 0.025"
+    <geom name="wall_x_min" type="box" pos="-0.051 0 0.25" size="0.001 0.252 0.25"
       friction="0.8 0.005 0.0001" rgba="0.18 0.20 0.23 1"/>
-    <geom name="wall_x_max" type="box" pos="0.451 0 0.025" size="0.001 0.252 0.025"
+    <geom name="wall_x_max" type="box" pos="0.451 0 0.25" size="0.001 0.252 0.25"
       friction="0.8 0.005 0.0001" rgba="0.18 0.20 0.23 1"/>
-    <geom name="wall_y_min" type="box" pos="0.20 -0.251 0.025" size="0.25 0.001 0.025"
+    <geom name="wall_y_min" type="box" pos="0.20 -0.251 0.25" size="0.25 0.001 0.25"
       friction="0.8 0.005 0.0001" rgba="0.18 0.20 0.23 1"/>
-    <geom name="wall_y_max" type="box" pos="0.20 0.251 0.025" size="0.25 0.001 0.025"
+    <geom name="wall_y_max" type="box" pos="0.20 0.251 0.25" size="0.25 0.001 0.25"
       friction="0.8 0.005 0.0001" rgba="0.18 0.20 0.23 1"/>
 
     <!-- Same 4 cm, 40 g cubes and initial placements as the previous scene. -->
@@ -46,12 +49,13 @@
         friction="0.8 0.005 0.0001" rgba="0.05 0.25 1.0 1"/>
     </body>
 
-    <!-- External perspective camera at the upper-right inside corner, at wall height.
-         Aim at the tabletop centre (0.20, 0, 0). MuJoCo cameras look along local -Z.
-         Local X = normalize((-1, 1, 0)); local Y = normalize((-1, -1, 10)),
-         giving local -Z = normalize((-5, -5, -1)), towards that centre. -->
-    <camera name="external" mode="fixed" pos="0.45 0.25 0.05"
-      xyaxes="-0.707106781186548 0.707106781186548 0 -0.099014754297667 -0.099014754297667 0.990147542976674"
+    <!-- External perspective camera inset 2 cm from the upper-right corner, 20 cm above the surface.
+         Preserve the original viewing angle; its ray meets the tabletop at (0.18, -0.02, 0).
+         MuJoCo cameras look along local -Z.
+         Local X = normalize((-1, 1, 0)); local Y = normalize((-2, -2, 5)),
+         giving local -Z = normalize((-5, -5, -4)). -->
+    <camera name="external" mode="fixed" pos="0.43 0.23 0.20"
+      xyaxes="-0.707106781186548 0.707106781186548 0 -0.348155311911396 -0.348155311911396 0.870388279778489"
       projection="perspective" fovy="90"/>
   </worldbody>
 </mujoco>
