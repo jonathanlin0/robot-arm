@@ -28,3 +28,5 @@ data/wandb/
 stack_demo.mp4
 
 data/
+
+logs/
