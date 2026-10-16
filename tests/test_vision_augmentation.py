@@ -131,7 +131,7 @@ def test_vision_entrypoint_augments_training_only_and_honors_configuration(tmp_p
         calls.append((transform.num_ops, transform.magnitude))
         return 255 - image
 
-    def inspect_training(*, model, model_type, loaders, config, device):
+    def inspect_training(*, model, model_type, loaders, config, device, log_file=None):
         assert model_type == "vision"
         assert type(loaders[0].dataset.transform) is RandAugment
         train_batch = next(iter(loaders[0]))

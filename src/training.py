@@ -11,6 +11,9 @@ observations before executing the action at that same row.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from contextlib import ExitStack
+from functools import partial
 import json
 from pathlib import Path
 import random
@@ -194,7 +197,8 @@ def create_vision_training_loader(config: VisionTrainingConfig, show_progress: b
 
 
 def run_action_epoch(model: ActionPolicy, loader: DataLoader, device: torch.device,
-                     optimizer: torch.optim.Optimizer | None) -> float:
+                     optimizer: torch.optim.Optimizer | None,
+                     on_batch: Callable[[float], None] | None = None) -> float:
     model.train(optimizer is not None)
     total_loss, total_count = 0.0, 0
     for tokens, valid, episode_start, labels, loss_mask in loader:
@@ -214,13 +218,17 @@ def run_action_epoch(model: ActionPolicy, loader: DataLoader, device: torch.devi
         count = int(loss_mask.sum())
         total_loss += float(loss.detach()) * count
         total_count += count
+        if on_batch is not None and total_count:
+            on_batch(total_loss / total_count)
     if total_count == 0:
         raise ValueError("Action loader contains no supervised timestamps.")
     return total_loss / total_count
 
 
 def run_vision_epoch(model: VisionModel, loader: DataLoader, device: torch.device,
-                     optimizer: torch.optim.Optimizer | None) -> float:
+                     optimizer: torch.optim.Optimizer | None,
+                     on_batch: Callable[[float], None] | None = None, *,
+                     position_weight: float = 200.0, orientation_weight: float = 1.0) -> float:
     model.train(optimizer is not None)
     total_loss, total_count = 0.0, 0
     for wrist, external, joints, poses in loader:
@@ -231,7 +239,8 @@ def run_vision_epoch(model: VisionModel, loader: DataLoader, device: torch.devic
         joints, poses = joints.to(device), poses.to(device)
         with torch.set_grad_enabled(optimizer is not None):
             prediction = model(wrist, external, joints)
-            loss = cube_pose_loss(prediction, poses)
+            loss = cube_pose_loss(prediction, poses, position_weight=position_weight,
+                                  orientation_weight=orientation_weight)
         if optimizer is not None:
             optimizer.zero_grad(set_to_none=True)
             loss.backward()
@@ -239,6 +248,8 @@ def run_vision_epoch(model: VisionModel, loader: DataLoader, device: torch.devic
         count = len(joints)
         total_loss += float(loss.detach()) * count
         total_count += count
+        if on_batch is not None and total_count:
+            on_batch(total_loss / total_count)
     if total_count == 0:
         raise ValueError("Vision loader contains no examples.")
     return total_loss / total_count
@@ -299,7 +310,7 @@ def train_action(project: ProjectConfig) -> list[dict[str, float | int]]:
     return _train(model=model, model_type="action", loaders=loaders, config=config, device=device)
 
 
-def train_vision(project: ProjectConfig) -> list[dict[str, float | int]]:
+def train_vision(project: ProjectConfig, log_file: Path | None = None) -> list[dict[str, float | int]]:
     config = project.training.vision
     seed_training(seed=config.seed)
     device = resolve_device(name=config.device)
@@ -307,24 +318,66 @@ def train_vision(project: ProjectConfig) -> list[dict[str, float | int]]:
     validation = load_vision_dataset(config.data_dir / "validation", show_progress=True)
     loaders = (training_loader, create_loader(dataset=validation, config=config, training=False))
     model = VisionModel(config=project.vision_model, backbone=None).to(device)
-    return _train(model=model, model_type="vision", loaders=loaders, config=config, device=device)
+    return _train(model=model, model_type="vision", loaders=loaders, config=config, device=device, log_file=log_file)
 
 
 def _train(model: ActionPolicy | VisionModel, model_type: str, loaders: tuple[DataLoader, DataLoader],
-           config: SupervisedTrainingConfig, device: torch.device) -> list[dict[str, float | int]]:
+           config: SupervisedTrainingConfig, device: torch.device,
+           log_file: Path | None = None) -> list[dict[str, float | int]]:
     optimizer = torch.optim.AdamW((parameter for parameter in model.parameters() if parameter.requires_grad),
                                  lr=config.learning_rate, betas=config.optimizer_betas, eps=config.optimizer_eps,
                                  weight_decay=config.weight_decay)
-    run_epoch = run_action_epoch if model_type == "action" else run_vision_epoch
+    run_epoch = run_action_epoch if model_type == "action" else partial(
+        run_vision_epoch, position_weight=config.position_loss_weight,
+        orientation_weight=config.orientation_loss_weight,
+    )
     metrics = []
-    validation_loss = float("nan")
+    training_loss = validation_loss = float("nan")
     print(f"Device: {device}; training examples: {len(loaders[0].dataset):,}; validation examples: {len(loaders[1].dataset):,}")
-    for epoch in range(1, config.epochs + 1):
-        training_loss = run_epoch(model=model, loader=loaders[0], device=device, optimizer=optimizer)
-        if epoch % config.validation_interval == 0 or epoch == config.epochs:
-            validation_loss = run_epoch(model=model, loader=loaders[1], device=device, optimizer=None)
-            metrics.append({"epoch": epoch, "training_loss": training_loss, "validation_loss": validation_loss})
-            print(f"Epoch {epoch}/{config.epochs} | train loss={training_loss:.6f} | validation loss={validation_loss:.6f}")
+    validation_runs = config.epochs // config.validation_interval + bool(config.epochs % config.validation_interval)
+    total_batches = config.epochs * len(loaders[0]) + validation_runs * len(loaders[1])
+
+    def loss_text(loss: float) -> str:
+        return "NaN" if np.isnan(loss) else f"{loss:.6f}"
+
+    with ExitStack() as stack:
+        log_stream = None
+        if log_file is not None:
+            log_file = log_file.expanduser()
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            log_stream = stack.enter_context(log_file.open("a", encoding="utf-8"))
+
+        def log_epoch(epoch: int, train_loss: float, val_loss: float) -> None:
+            if log_stream is not None:
+                log_stream.write(f"epoch={epoch} train_loss={loss_text(train_loss)} val_loss={loss_text(val_loss)}\n")
+                log_stream.flush()
+
+        log_epoch(0, training_loss, validation_loss)
+        progress = stack.enter_context(tqdm(
+            total=total_batches, desc=f"Epoch 0/{config.epochs}", unit="batch", dynamic_ncols=True,
+            postfix={"train_loss": "NaN", "val_loss": "NaN"},
+        ))
+        def update_training(loss: float) -> None:
+            progress.set_postfix(train_loss=loss_text(loss), val_loss=loss_text(validation_loss), refresh=False)
+            progress.update(1)
+
+        def update_validation(_loss: float) -> None:
+            progress.update(1)
+
+        for epoch in range(1, config.epochs + 1):
+            epoch_validation_loss = float("nan")
+            progress.set_description(f"Epoch {epoch}/{config.epochs} training", refresh=False)
+            training_loss = run_epoch(model=model, loader=loaders[0], device=device, optimizer=optimizer,
+                                      on_batch=update_training)
+            if epoch % config.validation_interval == 0 or epoch == config.epochs:
+                progress.set_description(f"Epoch {epoch}/{config.epochs} validation")
+                validation_loss = epoch_validation_loss = run_epoch(
+                    model=model, loader=loaders[1], device=device, optimizer=None, on_batch=update_validation,
+                )
+                metrics.append({"epoch": epoch, "training_loss": training_loss, "validation_loss": validation_loss})
+            progress.set_description(f"Epoch {epoch}/{config.epochs}", refresh=False)
+            progress.set_postfix(train_loss=loss_text(training_loss), val_loss=loss_text(validation_loss))
+            log_epoch(epoch, training_loss, epoch_validation_loss)
     save_model_checkpoint(model=model, model_type=model_type, checkpoint_path=config.checkpoint_path,
                           epoch=config.epochs, validation_loss=validation_loss)
     print(f"Saved {model_type} checkpoint: {config.checkpoint_path}")

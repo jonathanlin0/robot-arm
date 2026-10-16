@@ -87,6 +87,14 @@ class RandAugmentConfig(StrictConfig):
 
 class VisionTrainingConfig(SupervisedTrainingConfig):
     randaugment: RandAugmentConfig
+    position_loss_weight: float = Field(ge=0)
+    orientation_loss_weight: float = Field(ge=0)
+
+    @model_validator(mode="after")
+    def nonzero_loss_weights(self):
+        if self.position_loss_weight == 0 and self.orientation_loss_weight == 0:
+            raise ValueError("At least one vision loss weight must be positive")
+        return self
 
 
 class TrainingConfig(StrictConfig):

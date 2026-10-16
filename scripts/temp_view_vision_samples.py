@@ -64,11 +64,11 @@ def build_grid(config: VisionTrainingConfig, camera: str, data_dir: Path | None 
     raise ValueError(f"DataLoader yielded only {slot} images; expected {sample_count}.")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+def main(*, default_camera: str = "external", description: str | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__ if description is None else description)
     parser.add_argument("--config", type=Path, default=REPO_ROOT / "configs" / "default.json")
     parser.add_argument("--data-dir", type=Path, help="Override the training shard directory.")
-    parser.add_argument("--camera", choices=("external", "wrist"), default="external")
+    parser.add_argument("--camera", choices=("external", "wrist"), default=default_camera)
     parser.add_argument("--seed", type=int, help="Repeat the same sample order and augmentation; default is random.")
     parser.add_argument("--save", type=Path, metavar="PNG", help="Also save the grid.")
     parser.add_argument("--no-show", action="store_true", help="Do not open the image viewer.")

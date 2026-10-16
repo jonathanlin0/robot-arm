@@ -135,7 +135,36 @@ def test_quaternion_sign_does_not_change_pose_loss():
     prediction[:, 10:14] *= -1
     assert cube_pose_loss(prediction, target) == 0
     prediction[:, 0] += 0.3
-    assert cube_pose_loss(prediction, target) == pytest.approx(0.015)
+    assert cube_pose_loss(prediction, target, position_weight=1.0, orientation_weight=1.0) == pytest.approx(0.015)
+
+
+def test_pose_loss_defaults_to_position_weight_200_and_orientation_weight_one():
+    target = torch.tensor([[0., 0., 0., 1., 0., 0., 0.]] * 2).reshape(1, 14)
+    prediction = torch.tensor([[0.3, -0.6, 0.9, 1., 1., 0., 0.]] * 2).reshape(1, 14)
+    position_mse = (0.3 ** 2 + 0.6 ** 2 + 0.9 ** 2) / 3
+    orientation_mse = (1 - 2 ** -0.5) / 2
+
+    assert cube_pose_loss(prediction, target).item() == pytest.approx(200 * position_mse + orientation_mse)
+
+
+@pytest.mark.parametrize("position_weight,orientation_weight", [(7.5, 3.25), (0.0, 2.0), (6.0, 0.0)])
+def test_pose_loss_weights_scale_corresponding_gradients(position_weight, orientation_weight):
+    target = torch.tensor([[0., 0., 0., 1., 0., 0., 0.]] * 2, dtype=torch.float64).reshape(1, 14)
+    prediction = torch.tensor([[0.3, -0.6, 0.9, 1., 1., 0., 0.]] * 2,
+                              dtype=torch.float64).reshape(1, 14).requires_grad_()
+    baseline = cube_pose_loss(prediction, target, position_weight=1.0, orientation_weight=1.0)
+    baseline_gradient, = torch.autograd.grad(baseline, prediction)
+    weighted = cube_pose_loss(prediction, target, position_weight=position_weight,
+                              orientation_weight=orientation_weight)
+    weighted_gradient, = torch.autograd.grad(weighted, prediction)
+    position_indices, orientation_indices = [0, 1, 2, 7, 8, 9], [3, 4, 5, 6, 10, 11, 12, 13]
+
+    torch.testing.assert_close(weighted_gradient[:, position_indices],
+                               baseline_gradient[:, position_indices] * position_weight)
+    torch.testing.assert_close(weighted_gradient[:, orientation_indices],
+                               baseline_gradient[:, orientation_indices] * orientation_weight)
+    expected = position_weight * 0.42 + orientation_weight * (1 - 2 ** -0.5) / 2
+    assert weighted.item() == pytest.approx(expected)
 
 
 def test_runtime_outputs_are_raw_without_pose_value_checks():

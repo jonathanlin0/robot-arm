@@ -28,6 +28,8 @@
         "magnitude": 5,
         "num_ops": 2
       },
+      "position_loss_weight": 200.0,
+      "orientation_loss_weight": 1.0,
       "learning_rate": 0.0001,
       "weight_decay": 0.0001,
       "batch_size": 8,

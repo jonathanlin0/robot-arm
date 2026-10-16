@@ -72,20 +72,28 @@ class VisionModel(nn.Module):
         return self.pose_head(torch.cat((wrist, external, joint_positions), dim=-1))
 
 
-def cube_pose_loss(prediction: Tensor, target: Tensor) -> Tensor:
-    """Position MSE plus sign-invariant unit-quaternion MSE, averaged per cube.
+def cube_pose_loss_components(prediction: Tensor, target: Tensor) -> tuple[Tensor, Tensor]:
+    """Return unreduced position/orientation MSE, each shaped [..., 2] per cube.
 
     q and -q describe the same orientation. Normalization is confined to the
     loss; inference returns the network's raw 14 values.
     """
     if prediction.shape != target.shape or prediction.shape[-1] != 14:
         raise ValueError("Cube pose predictions and labels must have matching [..., 14] shapes.")
-    losses = []
+    position_errors, orientation_errors = [], []
     for offset in (0, 7):
         position_error = (prediction[..., offset:offset + 3] - target[..., offset:offset + 3]).square().mean(-1)
         quaternion = F.normalize(prediction[..., offset + 3:offset + 7], dim=-1, eps=1e-6)
         expected = F.normalize(target[..., offset + 3:offset + 7], dim=-1, eps=1e-6)
         orientation_error = torch.minimum((quaternion - expected).square().mean(-1),
                                           (quaternion + expected).square().mean(-1))
-        losses.append(position_error + orientation_error)
-    return torch.stack(losses, dim=-1).mean()
+        position_errors.append(position_error)
+        orientation_errors.append(orientation_error)
+    return torch.stack(position_errors, dim=-1), torch.stack(orientation_errors, dim=-1)
+
+
+def cube_pose_loss(prediction: Tensor, target: Tensor,
+                   position_weight: float = 200.0, orientation_weight: float = 1.0) -> Tensor:
+    """Weighted position and sign-invariant quaternion MSE, averaged per cube."""
+    position_error, orientation_error = cube_pose_loss_components(prediction, target)
+    return (position_weight * position_error + orientation_weight * orientation_error).mean()

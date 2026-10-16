@@ -153,9 +153,12 @@ def test_nondefault_optimizer_and_loader_settings_are_passed_through(tmp_path, m
         assert loader.pin_memory is True
         assert isinstance(loader.sampler, SequentialSampler)
     optimizers = []
-    def record_epoch(*, model, loader, device, optimizer):
+    def record_epoch(*, model, loader, device, optimizer, on_batch=None):
         if optimizer is not None:
             optimizers.append(optimizer)
+        for _ in loader:
+            if on_batch is not None:
+                on_batch(0.5)
         return 0.5
     monkeypatch.setattr(training, "run_action_epoch", record_epoch)
     training._train(model=ActionPolicy(action_config()), model_type="action", loaders=loaders,

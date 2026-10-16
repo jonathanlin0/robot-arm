@@ -36,12 +36,74 @@ training, disabled for validation and inference). Its input
 convolution is trainable and starts as an identity filter, followed by fixed
 resizing to 224×224. Both camera views share this adapter and frozen ResNet.
 
-Training prints train/validation losses at the configured cadence and saves a
+Vision loss is `position_loss_weight * XYZ_MSE + orientation_loss_weight * quaternion_MSE`,
+averaged over cubes and examples. `training.vision.position_loss_weight` defaults
+to `200.0` in the config and `orientation_loss_weight` to `1.0`. The loss function
+has the same defaults; training and validation explicitly pass the configured
+values. Weights must be nonnegative, with at least one positive. XYZ MSE uses
+positions in meters; quaternion MSE normalizes quaternions and accounts for
+their sign equivalence.
+
+Training uses a tqdm progress bar across training and validation batches, with
+the current epoch, phase, running training loss, and latest completed validation
+loss. It starts at epoch 0 with both losses shown as `NaN`. Validation runs at
+the configured interval and on the final epoch; its loss stays `NaN` until the
+first check, then retains the latest result between checks. The bar also shows
+elapsed time, batch rate, and estimated time remaining. Training saves a
 single final `.pt` checkpoint, overwriting that checkpoint name. The defaults
 are `checkpoints/vision/default.pt` and `checkpoints/action/default.pt`.
 Checkpoints include model configuration and all model weights, including the
 frozen backbone. Validation here measures held-out tensor loss, not live task
 success. These are supervised trainers; they do not run PPO.
+
+Vision training writes a compact log to `logs/default.log` by default. To
+choose another path, use `--log-file PATH` or its alias `--log PATH`:
+
+```sh
+PYTHONPATH=src python scripts/train_vision.py --log-file logs/vision_training.log
+```
+
+The file and parent directories are created if needed; existing logs are
+appended to. Each run begins with `epoch=0 train_loss=NaN val_loss=NaN`, then
+writes one line per completed epoch containing only `epoch`, `train_loss`, and
+`val_loss`. Losses use the configured weights. An epoch without validation
+records `val_loss=NaN`; the log never presents an older result as a new
+validation measurement. Every line is flushed immediately so another process
+can read it while training continues. The terminal retains its progress bar.
+Log paths are relative to the working directory unless an absolute path is given.
+
+To measure a saved vision model's position accuracy on the validation set:
+
+```sh
+python scripts/diagnostics/vision_position_error.py
+python scripts/diagnostics/vision_position_error.py --checkpoint checkpoints/vision/custom.pt
+```
+
+The diagnostic reports mean absolute X, Y, and Z error in centimeters for each
+cube and both cubes combined. It takes the absolute value of each coordinate
+error before averaging over all validation examples, including the final
+partial batch. Use `--config PATH` to select another configuration; the default
+checkpoint is its `training.vision.checkpoint_path`, normally
+`checkpoints/vision/default.pt`. It reuses the validation loader without
+RandAugment and runs inference with dropout disabled. No retraining or
+`PYTHONPATH` setup is needed.
+
+To split validation loss into its position and orientation contributions:
+
+```sh
+python scripts/diagnostics/vision_loss_breakdown.py
+python scripts/diagnostics/vision_loss_breakdown.py --checkpoint checkpoints/vision/custom.pt
+```
+
+This diagnostic shares the training loss calculation and explicitly applies
+the selected config's position and orientation weights. It reports weighted
+XYZ and sign-invariant normalized-quaternion MSE contributions, their sum, and
+each component's percentage of the sum. Results include each cube and both
+combined, averaged over validation examples. The combined total matches
+validation with the same weights up to floating-point rounding; older
+checkpoints may record losses calculated with different weights. These are
+loss contributions, rather than errors in centimeters or degrees. `--config`
+and the default checkpoint behave the same as in the position diagnostic.
 
 `run_simulation.py` loads those checkpoints and reads both simulated cameras
 through independent 30 FPS production. The command loop runs at 20 Hz until

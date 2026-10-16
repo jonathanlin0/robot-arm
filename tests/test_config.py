@@ -22,6 +22,8 @@ def test_default_config_resolves_paths_independent_of_working_directory(tmp_path
     config = load_config(ROOT / 'configs/default.json')
     assert config.environment.scene_path == ROOT / 'scenes/so101_two_cube_stack.xml'
     assert config.training.vision.data_dir == ROOT / 'data/vision'
+    assert config.training.vision.position_loss_weight == 200.0
+    assert config.training.vision.orientation_loss_weight == 1.0
     assert config.action_policy.transformer.embedding_dim == 160
     assert config.action_policy.history_length == 384
     assert config.cameras.fps == 30.0
@@ -44,6 +46,30 @@ def test_default_config_resolves_paths_independent_of_working_directory(tmp_path
     assert config.environment.vision_data.motion_blur_probability == 0.25
     assert config.environment.vision_data.motion_blur_exposure_range == (0.002, 0.012)
     assert config.environment.vision_data.motion_blur_samples == 3
+
+
+@pytest.mark.parametrize("name", ["position_loss_weight", "orientation_loss_weight"])
+@pytest.mark.parametrize("value", [-0.1, "1.0", True, None, float("nan"), float("inf")])
+def test_invalid_vision_loss_weights_are_rejected(raw_config, name, value):
+    raw_config["training"]["vision"][name] = value
+    with pytest.raises(ValidationError, match=name):
+        ProjectConfig.model_validate_json(json.dumps(raw_config))
+
+
+@pytest.mark.parametrize("position_weight,orientation_weight", [(0.0, 1.0), (200.0, 0.0), (7.5, 3.25)])
+def test_vision_loss_weights_allow_nondefaults_or_one_disabled_component(raw_config, position_weight,
+                                                                       orientation_weight):
+    raw_config["training"]["vision"].update(position_loss_weight=position_weight,
+                                           orientation_loss_weight=orientation_weight)
+    config = ProjectConfig.model_validate_json(json.dumps(raw_config)).training.vision
+    assert config.position_loss_weight == position_weight
+    assert config.orientation_loss_weight == orientation_weight
+
+
+def test_vision_loss_weights_cannot_both_be_zero(raw_config):
+    raw_config["training"]["vision"].update(position_loss_weight=0.0, orientation_loss_weight=0.0)
+    with pytest.raises(ValidationError, match=r"(?i)(weight|positive|zero)"):
+        ProjectConfig.model_validate_json(json.dumps(raw_config))
 
 
 @pytest.mark.parametrize("value", [-0.1, 1.0, 1.1, "0.1", True, float("nan"), float("inf")])

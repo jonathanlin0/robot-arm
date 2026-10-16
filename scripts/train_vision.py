@@ -15,9 +15,12 @@ from training import train_vision
 def main() -> None:
     parser = ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=Path("configs/default.json"))
+    parser.add_argument("--log-file", "--log", type=Path, default=Path("logs/default.log"),
+                        help="Append epoch, training loss, and validation loss here; create it if needed "
+                             "(default: logs/default.log).")
     arguments = parser.parse_args()
     config = load_config(path=arguments.config)
-    train_vision(project=config)
+    train_vision(project=config, log_file=arguments.log_file)
 
 
 if __name__ == "__main__":
