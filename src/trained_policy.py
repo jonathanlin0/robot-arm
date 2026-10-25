@@ -9,12 +9,14 @@ from numpy.typing import NDArray
 import torch
 from torch import nn
 
+from cube_yaw import quaternion_to_yaw
 from schemas import OBSERVATION_FIELDS, OBSERVATION_FIELD_LAYOUT, HISTORY_TOKEN_SIZE, CubeStates, PolicyAction, RobotState, Vec3
+from schemas import POLICY_OBSERVATION_FIELD_LAYOUT
 
 
 def build_observation(robot_state: RobotState, cube_states: CubeStates,
                       observation_fields: tuple[str, ...] = OBSERVATION_FIELDS) -> NDArray[np.float32]:
-    """Flatten the agreed robot/cube fields in checkpoint order as float32."""
+    """Flatten raw robot/cube fields in saved-demonstration order as float32."""
     values = {
         "joint_positions": robot_state.joint_positions,
         "joint_velocities": robot_state.joint_velocities,
@@ -23,6 +25,8 @@ def build_observation(robot_state: RobotState, cube_states: CubeStates,
     }
     for name in ("orange", "blue"):
         cube = cube_states[name]
+        if cube.orientation is None:
+            raise ValueError(f"Raw observation for {name} requires a quaternion orientation.")
         values[f"{name}_position"] = cube.position
         values[f"{name}_orientation"] = cube.orientation
         values[f"{name}_linear_velocity"] = cube.linear_velocity
@@ -32,6 +36,38 @@ def build_observation(robot_state: RobotState, cube_states: CubeStates,
         value = np.asarray(values[name], dtype=np.float32)
         if value.shape != (sizes[name],):
             raise ValueError(f"Observation field {name} must have shape ({sizes[name]},).")
+        fields.append(value)
+    return np.concatenate(fields).astype(np.float32, copy=False)
+
+
+def build_policy_observation(robot_state: RobotState, cube_states: CubeStates) -> NDArray[np.float32]:
+    """Build 37 values from already-normalized yaw or raw simulator poses."""
+    values = {
+        "joint_positions": robot_state.joint_positions,
+        "joint_velocities": robot_state.joint_velocities,
+        "commanded_joint_targets": robot_state.commanded_joint_targets,
+        "gripper_position": robot_state.gripper_position,
+    }
+    for name in ("orange", "blue"):
+        cube = cube_states[name]
+        if cube.yaw is not None:
+            # Vision normalizes once on-device. Repeating epsilon-clamped
+            # normalization would change near-zero predictions a second time.
+            yaw = np.asarray(cube.yaw, dtype=np.float32)
+            if yaw.shape != (2,) or not np.isfinite(yaw).all():
+                raise ValueError(f"Policy observation for {name} requires a finite two-value yaw pair.")
+        elif cube.orientation is not None:
+            yaw = quaternion_to_yaw(cube.orientation)
+        else:
+            raise ValueError(f"Policy observation for {name} requires yaw or quaternion orientation.")
+        values[f"{name}_position"] = cube.position
+        values[f"{name}_yaw"] = yaw
+        values[f"{name}_linear_velocity"] = cube.linear_velocity
+    fields = []
+    for name, size in POLICY_OBSERVATION_FIELD_LAYOUT:
+        value = np.asarray(values[name], dtype=np.float32)
+        if value.shape != (size,):
+            raise ValueError(f"Policy observation field {name} must have shape ({size},).")
         fields.append(value)
     return np.concatenate(fields).astype(np.float32, copy=False)
 
@@ -69,7 +105,7 @@ class TrainedPolicy:
 
     def predict(self, robot_state: RobotState, cube_states: CubeStates,
                 prev_accepted_target: Vec3, deterministic: bool = True) -> PolicyAction:
-        observation = build_observation(robot_state, cube_states, observation_fields=self.observation_fields)
+        observation = build_policy_observation(robot_state, cube_states)
         target = np.asarray(prev_accepted_target, dtype=np.float32)
         if target.shape != (3,):
             raise ValueError("prev_accepted_target must contain three XYZ values.")

@@ -5,9 +5,14 @@ Run from the repository root (no PYTHONPATH setup needed):
     python scripts/diagnostics/vision_loss_breakdown.py --checkpoint checkpoints/vision/custom.pt
 
 Uses the exact training loss with the selected config's weights: weighted XYZ
-MSE in meters squared plus weighted sign-invariant normalized-quaternion MSE.
+MSE in meters squared plus weighted MSE between normalized [cos(4*yaw),
+sin(4*yaw)] pairs. The circular encoding treats yaw angles separated by 90
+degrees as equivalent for uniformly colored, unmarked cubes. The saved model
+must use the direct-yaw architecture; quaternion-output checkpoints need
+retraining. Legacy quaternion labels are converted by the shared data loader.
 The default checkpoint and validation directory come from training.vision in
 the selected config.
+Loads every saved validation example, as the training script does.
 """
 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
@@ -81,7 +86,8 @@ def main() -> None:
     )
 
     print(f"\nWeighted validation loss breakdown over {count:,} examples")
-    print("Position: XYZ MSE (m^2). Orientation: sign-invariant normalized-quaternion MSE.")
+    print("Position: XYZ MSE (m^2). Orientation: normalized [cos(4*yaw), sin(4*yaw)] pair MSE.")
+    print("Yaw is periodic over 90 degrees; labels choose the most horizontal face, retaining the previous face on ties.")
     print(f"Loss weights from config: position={config.position_loss_weight:g}, "
           f"orientation={config.orientation_loss_weight:g}. Table shows weighted contributions.")
     print(f"{'Cube':<10} {'Position':>14} {'Orientation':>14} {'Total':>14} {'Position %':>12} {'Orientation %':>15}")
@@ -93,7 +99,8 @@ def main() -> None:
         orientation_share = f"{100 * orientation / total:.2f}%" if total > 0 else "N/A"
         print(f"{name:<10} {position:>14.8f} {orientation:>14.8f} {total:>14.8f} "
               f"{position_share:>12} {orientation_share:>15}")
-    print("Combined total uses the selected config's weights; the checkpoint's recorded loss may use older weights.")
+    print("Combined total uses the selected config's weights and circular yaw loss; "
+          "the checkpoint's recorded loss may use different weights.")
 
 
 if __name__ == "__main__":

@@ -16,7 +16,7 @@ import mujoco
 from camera_feed_getter import SIM_CAMERA_NAMES
 from camera_frame_buffer import CAMERA_FPS, CameraFrameBuffer
 from environment import CubeStackEnvironment
-from schemas import CAMERA_IMAGE_SHAPE, CameraFrame
+from schemas import CAMERA_IMAGE_SHAPES, CameraFrame
 from vision_errors import CameraAcquisitionError
 
 
@@ -71,8 +71,9 @@ class _CameraProducer:
 class SimCameraProducer(_CameraProducer):
     """Render both views at a fixed cadence without advancing the simulation.
 
-    One worker owns renderer creation, use, and destruction. Physics is copied
-    under the shared environment lock, then rendered outside that lock.
+    One worker owns a renderer per camera, at each view's native resolution.
+    Physics is copied under the shared environment lock, then both views render
+    from the same snapshot outside that lock.
     """
 
     def __init__(self, environment: CubeStackEnvironment,
@@ -95,11 +96,13 @@ class SimCameraProducer(_CameraProducer):
                 buffer.reset()
 
     def _run(self) -> None:
-        renderer = None
+        renderers = {}
         try:
-            renderer = self.renderer_factory(
-                self.environment.model, height=CAMERA_IMAGE_SHAPE[0], width=CAMERA_IMAGE_SHAPE[1]
-            )
+            for camera_id in SIM_CAMERA_NAMES:
+                height, width, _ = CAMERA_IMAGE_SHAPES[camera_id]
+                renderers[camera_id] = self.renderer_factory(
+                    self.environment.model, height=height, width=width,
+                )
             snapshot = mujoco.MjData(self.environment.model)
             while not self._stop_event.is_set():
                 started = monotonic()
@@ -108,6 +111,7 @@ class SimCameraProducer(_CameraProducer):
                         mujoco.mj_copyData(snapshot, self.environment.model, self.environment.data)
                         timestamp = float(snapshot.time)
                     for camera_id, camera_name in SIM_CAMERA_NAMES.items():
+                        renderer = renderers[camera_id]
                         renderer.update_scene(snapshot, camera=camera_name)
                         rgb = renderer.render()
                         self.buffers[camera_id].record_read(
@@ -118,7 +122,7 @@ class SimCameraProducer(_CameraProducer):
         except Exception as exception:
             self._publish_failure(exception)
         finally:
-            if renderer is not None:
+            for renderer in renderers.values():
                 try:
                     renderer.close()
                 except Exception as exception:
@@ -128,10 +132,11 @@ class SimCameraProducer(_CameraProducer):
 class PhysicalCameraProducer(_CameraProducer):
     """Continuously drain a configured OpenCV camera into its single RGB slot.
 
-    The application opens/configures the source at 30 FPS and 300x300. read()
-    normally supplies the camera cadence: successful reads are not artificially
-    delayed, allowing queued driver frames to be consumed promptly. Failed
-    reads retry at fps to avoid spinning on a disconnected camera.
+    The application opens/configures the source at 30 FPS: 128x128 for wrist,
+    300x300 for external. read() normally supplies the camera cadence:
+    successful reads are not artificially delayed, allowing queued driver
+    frames to be consumed promptly. Failed reads retry at fps to avoid spinning
+    on a disconnected camera.
     """
 
     def __init__(self, camera_id: str, camera: Any, buffer: CameraFrameBuffer,

@@ -19,10 +19,11 @@ def make_buffers():
     return {name: CameraFrameBuffer(name) for name in ("wrist", "external")}
 
 
-def test_physical_worker_reads_independently_converts_bgr_and_leaves_connection_owned():
+@pytest.mark.parametrize("camera_id, size", [("wrist", 128), ("external", 300)])
+def test_physical_worker_reads_independently_converts_bgr_and_leaves_connection_owned(camera_id, size):
     read_started = Event()
     allow_read = Event()
-    supplied = np.zeros((300, 300, 3), dtype=np.uint8)
+    supplied = np.zeros((size, size, 3), dtype=np.uint8)
     supplied[:] = [10, 20, 30]
 
     class Camera:
@@ -40,12 +41,13 @@ def test_physical_worker_reads_independently_converts_bgr_and_leaves_connection_
             pytest.fail("Producer must not release an application-owned connection.")
 
     camera = Camera()
-    buffer = CameraFrameBuffer("wrist")
-    producer = PhysicalCameraProducer("wrist", camera, buffer, fps=30, clock=lambda: 4.0)
+    buffer = CameraFrameBuffer(camera_id)
+    producer = PhysicalCameraProducer(camera_id, camera, buffer, fps=30, clock=lambda: 4.0)
     producer.start()
     try:
         assert read_started.wait(timeout=2.0)
         latest = buffer.get_latest(4.0)
+        assert latest.rgb.shape == (size, size, 3)
         np.testing.assert_array_equal(latest.rgb[0, 0], [30, 20, 10])
         assert latest.timestamp == 4.0
         assert camera.count >= 2  # No getter was needed to initiate acquisition.
@@ -92,6 +94,44 @@ def test_renderer_setup_failure_is_published_to_both_buffers():
             buffer.get_latest(0.0)
 
 
+@pytest.mark.parametrize("failure", ["create_second", "render_first", "close_first"])
+def test_simulation_worker_closes_all_created_renderers_after_failure(failure):
+    model = mujoco.MjModel.from_xml_path(str(DEFAULT_SCENE_PATH))
+    data = mujoco.MjData(model)
+    environment = SimpleNamespace(model=model, data=data, state_lock=Lock())
+    buffers = make_buffers()
+    created, closed = [], []
+
+    class Renderer:
+        def __init__(self, model_arg, height, width):
+            self.size = height
+            if failure == "create_second" and height == 300:
+                raise RuntimeError(failure)
+            created.append(height)
+
+        def update_scene(self, snapshot, camera):
+            pass
+
+        def render(self):
+            if failure == "render_first":
+                raise RuntimeError(failure)
+            producer._stop_event.set()  # End after this pair, then test cleanup.
+            return np.zeros((self.size, self.size, 3), dtype=np.uint8)
+
+        def close(self):
+            closed.append(self.size)
+            if failure == "close_first" and self.size == 128:
+                raise RuntimeError(failure)
+
+    producer = SimCameraProducer(environment, buffers, renderer_factory=Renderer)
+    producer._run()
+    assert created == ([128] if failure == "create_second" else [128, 300])
+    assert closed == created
+    for buffer in buffers.values():
+        with pytest.raises(CameraAcquisitionError, match=failure):
+            buffer.get_latest(0.0)
+
+
 def test_simulation_worker_owns_renderer_copies_coherent_state_and_resets_safely():
     model = mujoco.MjModel.from_xml_path(str(DEFAULT_SCENE_PATH))
     data = mujoco.MjData(model)
@@ -111,28 +151,32 @@ def test_simulation_worker_owns_renderer_copies_coherent_state_and_resets_safely
     both_rendered = Event()
     calls = []
     owner_thread = []
+    snapshots = []
 
     class Renderer:
         def __init__(self, model_arg, height, width):
             owner_thread.append(get_ident())
             assert model_arg is model
-            assert height == width == 300
-            calls.append("create")
+            assert height == width
+            self.size = height
+            calls.append(("create", height))
 
         def update_scene(self, snapshot, camera):
             assert get_ident() == owner_thread[0]
             assert snapshot is not data
             assert snapshot.time == 4.0
             self.camera = camera
+            assert self.size == {"wrist_cam": 128, "external": 300}[camera]
+            snapshots.append(snapshot)
             calls.append(camera)
 
         def render(self):
             assert get_ident() == owner_thread[0]
-            return np.full((300, 300, 3), 12, dtype=np.uint8)
+            return np.full((self.size, self.size, 3), 12, dtype=np.uint8)
 
         def close(self):
             assert get_ident() == owner_thread[0]
-            calls.append("close")
+            calls.append(("close", self.size))
 
     # Set the completion event after publication of the second frame.
     original_publish = buffers["external"].record_read
@@ -148,11 +192,15 @@ def test_simulation_worker_owns_renderer_copies_coherent_state_and_resets_safely
         assert both_rendered.wait(timeout=2.0)
         result = SimCameraFeedGetter(environment, buffers).capture()
         assert result["wrist"].timestamp == result["external"].timestamp == 4.0
+        assert result["wrist"].rgb.shape == (128, 128, 3)
+        assert result["external"].rgb.shape == (300, 300, 3)
         assert data.time == 4.0  # Rendering never advances physics.
     finally:
         producer.stop()
-    assert owner_thread[0] != get_ident()
-    assert calls[0] == "create" and calls[-1] == "close"
+    assert owner_thread[0] == owner_thread[1] != get_ident()
+    assert calls[:2] == [("create", 128), ("create", 300)]
+    assert calls[-2:] == [("close", 128), ("close", 300)]
+    assert snapshots and all(snapshot is snapshots[0] for snapshot in snapshots)
     assert "wrist_cam" in calls and "external" in calls
     producer.reset_session()
     assert reset_calls == [True]

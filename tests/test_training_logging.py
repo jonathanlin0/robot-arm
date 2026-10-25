@@ -1,4 +1,4 @@
-"""Training logs expose completed-epoch losses without changing validation timing."""
+"""Training logs expose completed-epoch losses and validation distance in meters."""
 
 import importlib.util
 from pathlib import Path
@@ -41,6 +41,7 @@ def train_setup(monkeypatch, tmp_path):
     config = load_config(ROOT / "configs/default.json").training.vision
     config.epochs = 5
     config.validation_interval = 2
+    config.lr_scheduler = None
     config.checkpoint_path = tmp_path / "model.pt"
     loader = DataLoader(TensorDataset(torch.zeros(1, 1)), batch_size=1)
     checkpoints = []
@@ -55,19 +56,21 @@ def test_log_flushes_completed_epochs_and_marks_unmeasured_validation_nan(monkey
     arguments, checkpoints = train_setup
     path = tmp_path / "nested" / "logs" / "vision.log"
     expected_lines = [
-        "epoch=0 train_loss=NaN val_loss=NaN",
-        "epoch=1 train_loss=0.100000 val_loss=NaN",
-        "epoch=2 train_loss=0.200000 val_loss=0.020000",
-        "epoch=3 train_loss=0.300000 val_loss=NaN",
-        "epoch=4 train_loss=0.400000 val_loss=0.040000",
-        "epoch=5 train_loss=0.500000 val_loss=0.050000",
+        "epoch=0 train_loss=NaN val_loss=NaN val_position_error_m=NaN",
+        "epoch=1 train_loss=0.100000 val_loss=NaN val_position_error_m=NaN",
+        "epoch=2 train_loss=0.200000 val_loss=0.020000 val_position_error_m=0.002000",
+        "epoch=3 train_loss=0.300000 val_loss=NaN val_position_error_m=NaN",
+        "epoch=4 train_loss=0.400000 val_loss=0.040000 val_position_error_m=0.004000",
+        "epoch=5 train_loss=0.500000 val_loss=0.050000 val_position_error_m=0.005000",
     ]
+    expected_lines = [line + " learning_rate=0.0001 next_learning_rate=0.0001" for line in expected_lines]
     epoch = 0
     validation_epochs = []
 
     def run_epoch(*, optimizer, on_batch, **kwargs):
         nonlocal epoch
         if optimizer is not None:
+            assert "on_validation_position_error" not in kwargs
             epoch += 1
             loss = epoch / 10
         else:
@@ -78,6 +81,8 @@ def test_log_flushes_completed_epochs_and_marks_unmeasured_validation_nan(monkey
         assert path.read_text(encoding="utf-8").splitlines() == expected_lines[:epoch]
         on_batch(loss)
         assert path.read_text(encoding="utf-8").splitlines() == expected_lines[:epoch]
+        if optimizer is None:
+            kwargs["on_validation_position_error"](epoch / 1000)
         return loss
 
     monkeypatch.setattr(training, "run_vision_epoch", run_epoch)
@@ -85,7 +90,9 @@ def test_log_flushes_completed_epochs_and_marks_unmeasured_validation_nan(monkey
 
     assert path.read_text(encoding="utf-8") == "\n".join(expected_lines) + "\n"
     assert validation_epochs == [2, 4, 5]
-    assert metrics == [dict(epoch=value, training_loss=value / 10, validation_loss=value / 100)
+    assert metrics == [dict(epoch=value, training_loss=value / 10, validation_loss=value / 100,
+                            validation_position_error_m=value / 1000,
+                            learning_rate=0.0001, next_learning_rate=0.0001)
                        for value in validation_epochs]
     assert len(checkpoints) == 1
     assert checkpoints[0]["epoch"] == 5
@@ -97,20 +104,32 @@ def test_existing_log_is_preserved_and_new_run_is_appended(monkeypatch, tmp_path
     arguments["config"].epochs = 1
     path = tmp_path / "vision.log"
     path.write_text("previous training run\n", encoding="utf-8")
-    monkeypatch.setattr(training, "run_vision_epoch", lambda **kwargs: 1 / 3)
+
+    def run_epoch(**kwargs):
+        if kwargs["optimizer"] is None:
+            kwargs["on_validation_position_error"](0.012345678)
+        return 1 / 3
+
+    monkeypatch.setattr(training, "run_vision_epoch", run_epoch)
 
     training._train(**arguments, log_file=path)
 
     assert path.read_text(encoding="utf-8") == (
         "previous training run\n"
-        "epoch=0 train_loss=NaN val_loss=NaN\n"
-        "epoch=1 train_loss=0.333333 val_loss=0.333333\n"
+        "epoch=0 train_loss=NaN val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001\n"
+        "epoch=1 train_loss=0.333333 val_loss=0.333333 val_position_error_m=0.012346 learning_rate=0.0001 next_learning_rate=0.0001\n"
     )
 
 
 def test_omitted_log_file_does_not_open_or_create_a_log(monkeypatch, tmp_path, train_setup):
     arguments, checkpoints = train_setup
-    monkeypatch.setattr(training, "run_vision_epoch", lambda **kwargs: 0.25)
+
+    def run_epoch(**kwargs):
+        if kwargs["optimizer"] is None:
+            kwargs["on_validation_position_error"](0.015)
+        return 0.25
+
+    monkeypatch.setattr(training, "run_vision_epoch", run_epoch)
 
     def unexpected_open(*args, **kwargs):
         raise AssertionError("Logging is optional; no path should be opened.")
@@ -119,6 +138,7 @@ def test_omitted_log_file_does_not_open_or_create_a_log(monkeypatch, tmp_path, t
     metrics = training._train(**arguments)
 
     assert [row["epoch"] for row in metrics] == [2, 4, 5]
+    assert [row["validation_position_error_m"] for row in metrics] == [0.015] * 3
     assert len(checkpoints) == 1
     assert list(tmp_path.iterdir()) == []
 
@@ -152,10 +172,35 @@ def test_log_closes_and_keeps_only_completed_epochs_after_failure(monkeypatch, t
 
     assert len(handles) == 1 and handles[0].closed
     assert path.read_text(encoding="utf-8") == (
-        "epoch=0 train_loss=NaN val_loss=NaN\n"
-        "epoch=1 train_loss=0.250000 val_loss=NaN\n"
+        "epoch=0 train_loss=NaN val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001\n"
+        "epoch=1 train_loss=0.250000 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001\n"
     )
     assert checkpoints == []
+
+
+def test_action_log_has_no_vision_position_metric(monkeypatch, tmp_path):
+    config = load_config(ROOT / "configs/default.json").training.action
+    config.epochs = 1
+    config.checkpoint_path = tmp_path / "action.pt"
+    loader = DataLoader(TensorDataset(torch.zeros(1, 1)), batch_size=1)
+    path = tmp_path / "action.log"
+
+    def run_epoch(*, on_batch, **kwargs):
+        assert "on_validation_position_error" not in kwargs
+        on_batch(0.25)
+        return 0.25
+
+    monkeypatch.setattr(training, "tqdm", SilentProgress)
+    monkeypatch.setattr(training, "run_action_epoch", run_epoch)
+    monkeypatch.setattr(training, "save_model_checkpoint", lambda **kwargs: None)
+    metrics = training._train(model=nn.Linear(1, 1), model_type="action", loaders=(loader, loader),
+                              config=config, device=torch.device("cpu"), log_file=path)
+
+    assert path.read_text(encoding="utf-8") == (
+        "epoch=0 train_loss=NaN val_loss=NaN\n"
+        "epoch=1 train_loss=0.250000 val_loss=0.250000\n"
+    )
+    assert metrics == [{"epoch": 1, "training_loss": 0.25, "validation_loss": 0.25}]
 
 
 @pytest.mark.parametrize("log_option", [None, "--log", "--log-file"])

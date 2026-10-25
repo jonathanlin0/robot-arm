@@ -1,0 +1,36 @@
+<mujoco model="Cube material comparison">
+      <visual>
+        <global offwidth="384" offheight="320"/>
+        <quality shadowsize="2048" numquads="12"/>
+        <headlight ambient="0.3 0.3 0.3" diffuse="0.25 0.25 0.25" specular="0 0 0"/>
+        <map znear="0.005" zfar="8"/>
+      </visual>
+      <asset>
+        <material name="orange_surface" rgba="1.0 0.3 0.0 1"/>
+        <material name="blue_surface" rgba="0.05 0.25 1.0 1"/>
+        <material name="matte" specular="0" shininess="0" reflectance="0"/>
+      </asset>
+      <worldbody>
+        <!-- The key illuminates cube tops from behind the reflection card.
+             Disable its shadows so the card does not obscure the highlights. -->
+        <light name="key" pos="-0.6 1.2 0.8" dir="0.6 -1.2 -0.765"
+               directional="true" diffuse="0.55 0.55 0.55" ambient="0 0 0"
+               specular="0.8 0.8 0.8" castshadow="false"/>
+        <camera name="comparison" pos="0.09 -0.18 0.15"
+                xyaxes="0.8944271909999159 0.4472135954999579 -0.0 -0.22188330496847203 0.44376660993694406 0.8682390194418471" fovy="34"/>
+        <!-- Orange is first so it receives MuJoCo's one mirror-reflection pass. -->
+        <geom name="orange_cube" type="box" pos="-0.034 0 0.02"
+              size="0.02 0.02 0.02" material="orange_surface"/>
+        <geom name="blue_cube" type="box" pos="0.034 0 0.02"
+              size="0.02 0.02 0.02" material="blue_surface"/>
+        <geom name="table" type="box" pos="0 0 -0.012" size="0.35 0.35 0.012"
+              rgba="0.38 0.40 0.43 1" material="matte"/>
+        <geom name="reflection_card" type="box" pos="0 0.122 0.13" size="0.16 0.002 0.08"
+              rgba="0.82 0.82 0.82 1" material="matte"/>
+        <geom type="box" pos="-0.09 0.119 0.13" size="0.009 0.001 0.065" rgba="0.08 0.08 0.08 1" material="matte"/>
+<geom type="box" pos="-0.045 0.119 0.13" size="0.009 0.001 0.065" rgba="0.08 0.08 0.08 1" material="matte"/>
+<geom type="box" pos="0.0 0.119 0.13" size="0.009 0.001 0.065" rgba="0.08 0.08 0.08 1" material="matte"/>
+<geom type="box" pos="0.045 0.119 0.13" size="0.009 0.001 0.065" rgba="0.08 0.08 0.08 1" material="matte"/>
+<geom type="box" pos="0.09 0.119 0.13" size="0.009 0.001 0.065" rgba="0.08 0.08 0.08 1" material="matte"/>
+      </worldbody>
+    </mujoco>

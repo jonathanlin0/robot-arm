@@ -1,6 +1,7 @@
 """Validation diagnostics split exactly the position/orientation training loss."""
 
 import importlib.util
+from math import cos, pi, sin
 from pathlib import Path
 import re
 import sys
@@ -8,7 +9,6 @@ import sys
 import pytest
 import torch
 from torch import nn
-from torch.nn import functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
 from schemas.config import load_config
@@ -27,61 +27,62 @@ def diagnostic():
     return module
 
 
-def legacy_loss(prediction, target):
-    """The pre-refactor objective, kept here to protect values and gradients."""
-    losses = []
-    for offset in (0, 7):
-        position = (prediction[..., offset:offset + 3] - target[..., offset:offset + 3]).square().mean(-1)
-        actual = F.normalize(prediction[..., offset + 3:offset + 7], dim=-1, eps=1e-6)
-        expected = F.normalize(target[..., offset + 3:offset + 7], dim=-1, eps=1e-6)
-        orientation = torch.minimum((actual - expected).square().mean(-1),
-                                    (actual + expected).square().mean(-1))
-        losses.append(position + orientation)
-    return torch.stack(losses, dim=-1).mean()
-
-
 def known_poses():
-    targets = torch.zeros(3, 2, 7)
-    # Scaled quaternions must be normalized; sign must not change orientation.
+    targets = torch.zeros(3, 2, 5)
+    # Pair magnitude is irrelevant; a quarter-turn has the same encoded yaw.
     targets[..., 3] = 3
     prediction = targets.clone()
     prediction[:, 0, :3] = torch.tensor([[0.3, 0, 0], [0, -0.6, 0], [0, 0, 0.9]])
     prediction[:, 1, :3] = torch.tensor([[0.1, -0.1, 0.1], [0.2, 0.2, -0.2], [-0.3, 0.3, 0.3]])
-    prediction[0, 0, 3:] = torch.tensor([-5., 0, 0, 0])  # Same orientation.
-    prediction[1, 0, 3:] = torch.tensor([0., 2, 0, 0])  # 180 degrees.
-    prediction[2, 0, 3:] = torch.tensor([2., 2, 0, 0])  # 90 degrees.
-    prediction[0, 1, 3:] = torch.tensor([0., 0, -4, 0])  # 180 degrees.
-    prediction[1, 1, 3:] = torch.tensor([-2., -2, 0, 0])  # 90 degrees, negative sign.
-    prediction[2, 1, 3:] = torch.tensor([7., 0, 0, 0])  # Same orientation.
-    return prediction.reshape(3, 14), targets.reshape(3, 14)
+    prediction[0, 0, 3:] = torch.tensor([5., 0])
+    prediction[1, 0, 3:] = torch.tensor([2., 0])
+    prediction[2, 0, 3:] = 2 * torch.tensor([cos(2 * pi / 3), sin(2 * pi / 3)])  # 30 degrees.
+    prediction[0, 1, 3:] = torch.tensor([-4., 0])  # 45 degrees.
+    prediction[1, 1, 3:] = torch.tensor([2., 0])
+    prediction[2, 1, 3:] = torch.tensor([7., 0])
+    return prediction.reshape(3, 10), targets.reshape(3, 10)
 
 
-def test_components_have_expected_xyz_and_quaternion_values():
+def test_components_have_expected_xyz_and_circular_yaw_values():
     prediction, target = known_poses()
     position, orientation = cube_pose_loss_components(prediction, target)
 
     torch.testing.assert_close(position, torch.tensor([[0.03, 0.01], [0.12, 0.04], [0.27, 0.09]]))
-    quarter_turn = (1 - 2 ** -0.5) / 2
-    torch.testing.assert_close(orientation, torch.tensor([[0., 0.5], [0.5, quarter_turn], [quarter_turn, 0.]]))
+    thirty_degrees = 1 - cos(2 * pi / 3)
+    forty_five_degrees = 2.0
+    torch.testing.assert_close(orientation, torch.tensor([[0., forty_five_degrees], [0., 0.], [thirty_degrees, 0.]]))
     torch.testing.assert_close((position + orientation).mean(),
                                cube_pose_loss(prediction, target, position_weight=1.0, orientation_weight=1.0))
 
 
-@pytest.mark.parametrize("shape", [(14,), (3, 14), (2, 3, 14)])
-def test_refactored_loss_preserves_legacy_value_and_gradients(shape):
+@pytest.mark.parametrize("shape", [(10,), (3, 10), (2, 3, 10)])
+@pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
+def test_components_support_batch_dimensions_and_have_finite_gradients(shape, dtype):
     generator = torch.Generator().manual_seed(19)
-    prediction = torch.randn(shape, dtype=torch.float64, generator=generator).requires_grad_()
-    target = torch.randn(shape, dtype=torch.float64, generator=generator).requires_grad_()
+    prediction = torch.randn(shape, dtype=dtype, generator=generator).requires_grad_()
+    target = torch.randn(shape, dtype=dtype, generator=generator).requires_grad_()
     position, orientation = cube_pose_loss_components(prediction, target)
     assert position.shape == orientation.shape == (*shape[:-1], 2)
+    assert position.dtype == orientation.dtype == dtype
+    predicted_poses = prediction.reshape(*shape[:-1], 2, 5)
+    target_poses = target.reshape(*shape[:-1], 2, 5)
+    expected_position = (predicted_poses[..., :3] - target_poses[..., :3]).square().mean(-1)
+    torch.testing.assert_close(position, expected_position, rtol=0, atol=0)
+    assert (orientation > 0).all()
 
-    expected = legacy_loss(prediction, target)
+    expected = (position + orientation).mean()
     actual = cube_pose_loss(prediction, target, position_weight=1.0, orientation_weight=1.0)
     torch.testing.assert_close(actual, expected, rtol=0, atol=0)
-    expected_gradients = torch.autograd.grad(expected, (prediction, target))
-    actual_gradients = torch.autograd.grad(actual, (prediction, target))
-    for actual_gradient, expected_gradient in zip(actual_gradients, expected_gradients):
-        torch.testing.assert_close(actual_gradient, expected_gradient, rtol=0, atol=0)
+    for gradient in torch.autograd.grad(actual, (prediction, target)):
+        assert torch.isfinite(gradient).all()
+        assert gradient[..., [3, 4, 8, 9]].abs().sum() > 0
+
+
+def test_circular_yaw_loss_gradients_match_finite_differences():
+    generator = torch.Generator().manual_seed(47)
+    prediction = torch.randn(2, 10, dtype=torch.float64, generator=generator).requires_grad_()
+    target = torch.randn(2, 10, dtype=torch.float64, generator=generator).requires_grad_()
+    assert torch.autograd.gradcheck(cube_pose_loss_components, (prediction, target))
 
 
 class RecordedPredictions(nn.Module):
@@ -121,12 +122,13 @@ def test_evaluation_weights_uneven_batches_and_matches_training_loss(diagnostic,
     count, components = diagnostic.evaluate_loss_breakdown(model, make_loader(targets), torch.device("cpu"),
                                                             **arguments)
 
-    quarter_turn = (1 - 2 ** -0.5) / 2
+    thirty_degrees = 1 - cos(2 * pi / 3)
+    forty_five_degrees = 2.0
     assert count == 3
     assert components.shape == (2, 2)
     expected = torch.tensor([
-        [0.14, (0.5 + quarter_turn) / 3],
-        [0.14 / 3, (0.5 + quarter_turn) / 3],
+        [0.14, thirty_degrees / 3],
+        [0.14 / 3, forty_five_degrees / 3],
     ]) * torch.tensor([position_weight, orientation_weight])
     torch.testing.assert_close(components.float(), expected)
     torch.testing.assert_close(components.sum(-1).mean().float(), cube_pose_loss(predictions, targets, **arguments))
@@ -156,7 +158,7 @@ def test_evaluation_preserves_training_image_normalization(diagnostic, dtype):
 
 
 def test_empty_validation_loader_is_an_error(diagnostic):
-    targets = torch.zeros(0, 14)
+    targets = torch.zeros(0, 10)
     with pytest.raises(ValueError, match=r"(?i)(empty|no .*examples|no .*samples|zero)"):
         diagnostic.evaluate_loss_breakdown(RecordedPredictions(targets), make_loader(targets), torch.device("cpu"))
 
@@ -180,7 +182,7 @@ def test_cli_checkpoint_selection_validation_split_and_loss_shares(
         arguments.extend(["--checkpoint", str(selected)])
     monkeypatch.setattr(sys, "argv", arguments)
 
-    dataset = TensorDataset(torch.zeros(3, 14))
+    dataset = TensorDataset(torch.zeros(3, 10))
     loader, model = object(), object()
     device = torch.device("cpu")
     calls = {}

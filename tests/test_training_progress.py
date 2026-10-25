@@ -45,6 +45,8 @@ def progress_setup(monkeypatch, tmp_path, model_type, epochs=3):
     config.epochs = epochs
     config.validation_interval = 2
     config.checkpoint_path = tmp_path / "trained.pt"
+    if model_type == "vision":
+        config.lr_scheduler = None
     loaders = (
         DataLoader(TensorDataset(torch.zeros(3, 1)), batch_size=2),
         DataLoader(TensorDataset(torch.zeros(1, 1)), batch_size=2),
@@ -73,10 +75,12 @@ def test_training_progress_reports_batches_and_latest_completed_validation(monke
 
     def run_epoch(*, model, loader, device, optimizer, on_batch, **loss_weights):
         nonlocal epoch
+        is_training = optimizer is not None
+        position_callback = loss_weights.pop("on_validation_position_error", None)
+        assert (position_callback is not None) == (model_type == "vision" and not is_training)
         expected_weights = ({"position_weight": 7.5, "orientation_weight": 0.25}
                             if model_type == "vision" else {})
         assert loss_weights == expected_weights
-        is_training = optimizer is not None
         if is_training:
             epoch += 1
         for batch in range(1, len(loader) + 1):
@@ -84,6 +88,8 @@ def test_training_progress_reports_batches_and_latest_completed_validation(monke
             on_batch(loss)
             bar = bars[0]
             observations.append((epoch, is_training, loss, bar.n, bar.description, dict(bar.postfix)))
+        if position_callback is not None:
+            position_callback(epoch / 1000)
         return loss
 
     monkeypatch.setattr(training, f"run_{model_type}_epoch", run_epoch)
@@ -97,9 +103,14 @@ def test_training_progress_reports_batches_and_latest_completed_validation(monke
     assert bar.n == bar.total and bar.closed
     assert bar.unit == "batch"
     assert bar.descriptions[0] == f"Epoch 0/{epochs}"
-    assert bar.postfixes[0] == {"train_loss": "NaN", "val_loss": "NaN"}
+    expected_initial = {"train_loss": "NaN", "val_loss": "NaN"}
+    if model_type == "vision":
+        expected_initial["val_position_error_m"] = "NaN"
+        expected_initial["learning_rate"] = "0.0001"
+    assert bar.postfixes[0] == expected_initial
 
     last_validation = None
+    last_position_error = None
     training_loss = None
     for batch_number, (current_epoch, is_training, loss, completed, description, postfix) in enumerate(observations, 1):
         assert completed == batch_number
@@ -112,13 +123,31 @@ def test_training_progress_reports_batches_and_latest_completed_validation(monke
             assert postfix["val_loss"] == "NaN"
         else:
             assert float(postfix["val_loss"]) == pytest.approx(last_validation)
+        if model_type == "vision":
+            assert float(postfix["learning_rate"]) == pytest.approx(config.learning_rate)
+            if last_position_error is None:
+                assert postfix["val_position_error_m"] == "NaN"
+            else:
+                assert float(postfix["val_position_error_m"]) == pytest.approx(last_position_error)
+        else:
+            assert "val_position_error_m" not in postfix
+            assert "learning_rate" not in postfix
         if not is_training:
             last_validation = loss
+            last_position_error = current_epoch / 1000
 
-    assert metrics == [{"epoch": value, "training_loss": (10 * value + 2) / 100,
-                        "validation_loss": value / 50} for value in validation_epochs]
+    expected_metrics = [{"epoch": value, "training_loss": (10 * value + 2) / 100,
+                         "validation_loss": value / 50} for value in validation_epochs]
+    if model_type == "vision":
+        for row in expected_metrics:
+            row["validation_position_error_m"] = row["epoch"] / 1000
+            row["learning_rate"] = config.learning_rate
+            row["next_learning_rate"] = config.learning_rate
+    assert metrics == expected_metrics
     assert float(bar.postfix["train_loss"]) == pytest.approx(metrics[-1]["training_loss"])
     assert float(bar.postfix["val_loss"]) == pytest.approx(metrics[-1]["validation_loss"])
+    if model_type == "vision":
+        assert float(bar.postfix["val_position_error_m"]) == pytest.approx(epochs / 1000)
     assert len(checkpoints) == 1
     assert checkpoints[0]["epoch"] == epochs
     assert checkpoints[0]["validation_loss"] == metrics[-1]["validation_loss"]
@@ -140,28 +169,28 @@ def test_training_progress_closes_when_a_batch_fails(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize("loss_weights, expected_losses", [
-    ({}, [500.5, 1400.5]),
-    ({"position_weight": 3.0, "orientation_weight": 4.0}, [9.5, 23.0]),
+    ({}, [500.0, 1400.0]),
+    ({"position_weight": 3.0, "orientation_weight": 4.0}, [7.5, 21.0]),
 ])
 def test_vision_batch_callback_reports_example_weighted_running_loss(loss_weights, expected_losses):
     class PoseModel(nn.Module):
         def forward(self, wrist, external, joints):
-            prediction = torch.zeros(len(joints), 14)
+            prediction = torch.zeros(len(joints), 10)
             prediction[:, :3] = joints[:, :1]
-            prediction[:, 7:10] = joints[:, :1]
-            prediction[:, 4] = prediction[:, 11] = 1.0
+            prediction[:, 5:8] = joints[:, :1]
+            prediction[:, 3] = prediction[:, 8] = 1.0
             return prediction
 
     image = torch.zeros(3, 3, 1, 1)
     joints = torch.zeros(3, 6)
     joints[:, 0] = torch.tensor([1.0, 2.0, 4.0])
-    poses = torch.zeros(3, 14)
-    poses[:, 3] = poses[:, 10] = 1.0
+    poses = torch.zeros(3, 10)
+    poses[:, 3] = poses[:, 8] = 1.0
     loader = DataLoader(TensorDataset(image, image.clone(), joints, poses), batch_size=2)
     losses = []
     result = training.run_vision_epoch(PoseModel(), loader, torch.device("cpu"), optimizer=None,
                                        on_batch=losses.append, **loss_weights)
-    # The unweighted position averages are 2.5 and 7.0; orientation MSE is 0.5.
+    # Position MSE averages are 2.5 and 7.0. Identical yaw pairs contribute zero.
     assert losses == pytest.approx(expected_losses)
     assert result == pytest.approx(losses[-1])
 
@@ -171,7 +200,7 @@ def test_action_batch_callback_weights_supervised_timestamps():
         def forward(self, tokens, valid, episode_start):
             return tokens[..., :4]
 
-    tokens = torch.zeros(3, 2, 48)
+    tokens = torch.zeros(3, 2, 44)
     tokens[0, :, :4] = 1.0
     tokens[1, :, :4] = 2.0
     tokens[2, :, :4] = 4.0

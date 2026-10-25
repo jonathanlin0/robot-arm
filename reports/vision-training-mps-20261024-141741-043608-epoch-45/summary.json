@@ -1,0 +1,62 @@
+{
+  "source": "/Users/jonathanlin/Documents/GitHub/robot-arm/logs/vision-training-mps-20261024-141741-043608.metrics.log",
+  "snapshot_at": "2026-10-24T16:19:38.454496-05:00",
+  "latest_completed_epoch": 45,
+  "training_loss": 0.018647,
+  "latest_validation": {
+    "epoch": 40,
+    "train_loss": 0.024083,
+    "val_loss": 0.02143,
+    "val_position_error_m": 0.006126,
+    "learning_rate": 0.0001,
+    "next_learning_rate": 0.0001
+  },
+  "best_validation": {
+    "epoch": 30,
+    "train_loss": 0.024893,
+    "val_loss": 0.02054,
+    "val_position_error_m": 0.006264,
+    "learning_rate": 0.0001,
+    "next_learning_rate": 0.0001
+  },
+  "validation": [
+    {
+      "epoch": 10,
+      "train_loss": 0.050536,
+      "val_loss": 0.029667,
+      "val_position_error_m": 0.009645,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 0.0001
+    },
+    {
+      "epoch": 20,
+      "train_loss": 0.032135,
+      "val_loss": 0.026794,
+      "val_position_error_m": 0.007094,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 0.0001
+    },
+    {
+      "epoch": 30,
+      "train_loss": 0.024893,
+      "val_loss": 0.02054,
+      "val_position_error_m": 0.006264,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 0.0001
+    },
+    {
+      "epoch": 40,
+      "train_loss": 0.024083,
+      "val_loss": 0.02143,
+      "val_position_error_m": 0.006126,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 0.0001
+    }
+  ],
+  "current_console_phase": [
+    "46",
+    "training"
+  ],
+  "validation_loss_change_since_epoch10_pct": -27.764856574645226,
+  "position_error_change_since_epoch10_pct": -36.48522550544324
+}

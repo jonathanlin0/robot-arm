@@ -8,7 +8,7 @@ import pytest
 
 from camera_feed_getter import PhysicalCameraFeedGetter, SimCameraFeedGetter
 from camera_frame_buffer import CameraFrameBuffer
-from schemas import CameraFrame
+from schemas import CAMERA_IMAGE_SHAPES, CameraFrame
 from vision_errors import CameraAcquisitionError, StaleVisionDataError, VisionDataUnavailableError
 
 
@@ -21,7 +21,23 @@ class Clock:
 
 
 def frame(name="wrist", timestamp=0.0):
-    return CameraFrame(camera_id=name, timestamp=timestamp, rgb=np.zeros((300, 300, 3), dtype=np.uint8))
+    return CameraFrame(camera_id=name, timestamp=timestamp,
+                       rgb=np.zeros(CAMERA_IMAGE_SHAPES[name], dtype=np.uint8))
+
+
+@pytest.mark.parametrize("camera_id, wrong_shape", [
+    ("wrist", (300, 300, 3)), ("external", (128, 128, 3)),
+])
+def test_frame_rejects_other_cameras_resolution(camera_id, wrong_shape):
+    with pytest.raises(ValueError, match=f"Camera '{camera_id}' requires RGB image shape"):
+        CameraFrame(camera_id=camera_id, timestamp=0.0,
+                    rgb=np.zeros(wrong_shape, dtype=np.uint8))
+
+
+def test_frame_rejects_unknown_camera_id():
+    with pytest.raises(ValueError, match="Unknown camera ID"):
+        CameraFrame(camera_id="unknown", timestamp=0.0,
+                    rgb=np.zeros((128, 128, 3), dtype=np.uint8))
 
 
 def test_missing_image_is_recoverable_and_success_resets_failed_read_streak():

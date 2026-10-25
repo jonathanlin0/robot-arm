@@ -5,7 +5,13 @@
     python scripts/temp_view_vision_samples.py --save .tmp/vision_samples.png --no-show
 
 Uses the same in-memory training DataLoader and RandAugment as vision training.
-All training shards are loaded up front. No PYTHONPATH setup is needed.
+All saved samples from every training shard are loaded up front.
+The shared loader accepts direct-yaw labels and converts legacy quaternion
+labels in memory; the preview displays the images without modifying the data.
+External images are stored and displayed at 300x300. Wrist images are stored at
+128x128 and enlarged to 300x300 for this preview only. The loader requires these
+per-camera stored sizes; regenerate datasets with 128x128 external images.
+No PYTHONPATH setup is needed.
 """
 
 import argparse
@@ -26,7 +32,7 @@ from training import create_vision_training_loader, seed_training
 
 GRID_COLUMNS = 5
 GRID_ROWS = 4
-IMAGE_SIZE = 300
+IMAGE_SIZE = 300  # Display size; stored external frames are 300x300, wrist 128x128.
 LABEL_HEIGHT = 24
 
 
@@ -54,6 +60,7 @@ def build_grid(config: VisionTrainingConfig, camera: str, data_dir: Path | None 
             if image.dtype != torch.uint8:
                 image = image.clamp(0, 1).mul(255).round().to(torch.uint8)
             frame = Image.fromarray(image.permute(1, 2, 0).cpu().numpy())
+            frame = frame.resize((IMAGE_SIZE, IMAGE_SIZE), resample=Image.Resampling.NEAREST)
             x = (slot % GRID_COLUMNS) * IMAGE_SIZE
             y = (slot // GRID_COLUMNS) * (IMAGE_SIZE + LABEL_HEIGHT)
             grid.paste(frame, (x, y + LABEL_HEIGHT))

@@ -1,0 +1,1486 @@
+{
+  "created_at": "2026-10-23T23:29:41.429914-05:00",
+  "config_path": "/Users/jonathanlin/Documents/GitHub/robot-arm/configs/default.json",
+  "scene_path": "/Users/jonathanlin/Documents/GitHub/robot-arm/scenes/so101_two_cube_stack.xml",
+  "bounds_source": "environment.vision_data",
+  "cube_x_range_m": [
+    0.25,
+    0.35
+  ],
+  "cube_y_range_m": [
+    -0.1,
+    0.1
+  ],
+  "heights_cm": [
+    3.0,
+    4.0,
+    5.0,
+    6.0,
+    7.0,
+    8.0
+  ],
+  "target_definition": "Actual orange cube center in world coordinates, not the gripper frame.",
+  "position_tolerance_mm": 1.5,
+  "required_hold_seconds": 0.5,
+  "routes": [
+    "direct",
+    "xy_then_z",
+    "z_then_xy"
+  ],
+  "controller_config": {
+    "maximum_position_delta": 0.0025,
+    "closed_gripper_target": -0.1,
+    "open_gripper_target": 1.0,
+    "close_gripper_command_threshold": -0.5,
+    "open_gripper_command_threshold": 0.5,
+    "target_tool_axis": [
+      0.0,
+      0.0,
+      -1.0
+    ],
+    "require_downward": true,
+    "target_tool_yaw": 0.0,
+    "position_tolerance": 0.001,
+    "tool_axis_tolerance": 1.7453292519943295,
+    "tool_yaw_tolerance": 0.017453292519943295,
+    "ik_max_iterations": 100,
+    "ik_damping": 0.001,
+    "ik_max_joint_step": 0.2,
+    "backtracking_scales": [
+      1.0,
+      0.5,
+      0.25,
+      0.125
+    ],
+    "orientation_weight": 0.05
+  },
+  "teacher_config": {
+    "waypoint_height": 0.08,
+    "grasp_radial_offset": 0.007,
+    "grasp_height_offset": 0.005,
+    "position_tolerance": 0.0015,
+    "consecutive_near_steps": 3,
+    "maximum_move_steps": 200,
+    "open_settle_steps": 10,
+    "close_gripper_steps": 20,
+    "lift_settle_steps": 10,
+    "release_steps": 10,
+    "retreat_distance": 0.05,
+    "extra_hold_steps": 20
+  },
+  "physics_timestep": 0.005,
+  "control_hz": 20.0,
+  "pickup_xy_m": [
+    0.3,
+    0.0
+  ],
+  "intentional_drops_enabled": false,
+  "method": "Physical center pickup; blue at opposite corner; restore verified grasp before each route.",
+  "limitations": "Tests these paths, grasp, and solver settings. Failures do not prove geometric impossibility; corner passes do not certify every interior point or blue-cube placement.",
+  "pickups": [
+    {
+      "corner": "x_min_y_min",
+      "status": "held",
+      "blue_xy_m": [
+        0.35,
+        0.1
+      ],
+      "orange_xyz_m": [
+        0.3013233610310853,
+        -3.6041128050544427e-07,
+        0.09043401049706325
+      ]
+    },
+    {
+      "corner": "x_min_y_max",
+      "status": "held",
+      "blue_xy_m": [
+        0.35,
+        -0.1
+      ],
+      "orange_xyz_m": [
+        0.3013233610310853,
+        -3.6041128050544427e-07,
+        0.09043401049706325
+      ]
+    },
+    {
+      "corner": "x_max_y_min",
+      "status": "held",
+      "blue_xy_m": [
+        0.25,
+        0.1
+      ],
+      "orange_xyz_m": [
+        0.3013233610310853,
+        -3.6041128050544427e-07,
+        0.09043401049706325
+      ]
+    },
+    {
+      "corner": "x_max_y_max",
+      "status": "held",
+      "blue_xy_m": [
+        0.25,
+        -0.1
+      ],
+      "orange_xyz_m": [
+        0.3013233610310853,
+        -3.6041128050544427e-07,
+        0.09043401049706325
+      ]
+    }
+  ],
+  "results": [
+    {
+      "corner": "x_min_y_min",
+      "z_cm": 3.0,
+      "target_xyz_m": [
+        0.25,
+        -0.1,
+        0.03
+      ],
+      "blue_xy_m": [
+        0.35,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 0.5640264745452991,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.24988172692479024,
+            -0.09993888072747117,
+            0.02975651445911305
+          ],
+          "actual_gripper_xyz_m": [
+            0.24976022059069722,
+            -0.10269139746404818,
+            0.042841284536252286
+          ],
+          "position_error_mm": 0.2775054853782823,
+          "axis_error_mm": [
+            -0.11827307520975716,
+            0.0611192725288312,
+            -0.24348554088694796
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.0015229961276859716
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_min_y_min",
+      "z_cm": 4.0,
+      "target_xyz_m": [
+        0.25,
+        -0.1,
+        0.04
+      ],
+      "blue_xy_m": [
+        0.35,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 0.6638487928801383,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.24989365543764663,
+            -0.09994636076422378,
+            0.039757243885574556
+          ],
+          "actual_gripper_xyz_m": [
+            0.2498009004537687,
+            -0.1027946923746995,
+            0.05332530819727559
+          ],
+          "position_error_mm": 0.2704013029697276,
+          "axis_error_mm": [
+            -0.10634456235336653,
+            0.05363923577622609,
+            -0.24275611442544504
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.001489779638767791
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_min_y_min",
+      "z_cm": 5.0,
+      "target_xyz_m": [
+        0.25,
+        -0.1,
+        0.05
+      ],
+      "blue_xy_m": [
+        0.35,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 0.5702880835782006,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.24989886970790073,
+            -0.09994699671948967,
+            0.049752830036277056
+          ],
+          "actual_gripper_xyz_m": [
+            0.2498023639514574,
+            -0.10264429127413006,
+            0.06259517219201542
+          ],
+          "position_error_mm": 0.27226765267240793,
+          "axis_error_mm": [
+            -0.10113029209926627,
+            0.053003280510333095,
+            -0.24716996372294714
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.0016897791008905706
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_min_y_min",
+      "z_cm": 6.0,
+      "target_xyz_m": [
+        0.25,
+        -0.1,
+        0.06
+      ],
+      "blue_xy_m": [
+        0.35,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 0.436792380676564,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.24984852541652242,
+            -0.09992236250459902,
+            0.059607955781131886
+          ],
+          "actual_gripper_xyz_m": [
+            0.24979724504996859,
+            -0.10301751459428675,
+            0.0718841105693942
+          ],
+          "position_error_mm": 0.4274000464199257,
+          "axis_error_mm": [
+            -0.15147458347758436,
+            0.07763749540098952,
+            -0.39204421886811225
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.0014845687870087524
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_min_y_min",
+      "z_cm": 7.0,
+      "target_xyz_m": [
+        0.25,
+        -0.1,
+        0.07
+      ],
+      "blue_xy_m": [
+        0.35,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.1811674286408411,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.24984511514188582,
+            -0.09992593962948816,
+            0.06937349288585055
+          ],
+          "actual_gripper_xyz_m": [
+            0.24941416338623568,
+            -0.10218630508588362,
+            0.08185164809929125
+          ],
+          "position_error_mm": 0.6496040500437766,
+          "axis_error_mm": [
+            -0.15488485811418484,
+            0.07406037051184422,
+            -0.6265071141494521
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.0020246208080813384
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_min_y_min",
+      "z_cm": 8.0,
+      "target_xyz_m": [
+        0.25,
+        -0.1,
+        0.08
+      ],
+      "blue_xy_m": [
+        0.35,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.112407702796535,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.25012526407418656,
+            -0.10007219884184834,
+            0.07942120608396314
+          ],
+          "actual_gripper_xyz_m": [
+            0.24906268813548338,
+            -0.10216500457148145,
+            0.09319200830776721
+          ],
+          "position_error_mm": 0.5965787108901449,
+          "axis_error_mm": [
+            0.1252640741865596,
+            -0.07219884184833658,
+            -0.5787939160368655
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.0018812353569444588
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_min_y_max",
+      "z_cm": 3.0,
+      "target_xyz_m": [
+        0.25,
+        0.1,
+        0.03
+      ],
+      "blue_xy_m": [
+        0.35,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 0.5878805442458859,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.2498806711921104,
+            0.0999362958094195,
+            0.029753496002631306
+          ],
+          "actual_gripper_xyz_m": [
+            0.24978994887873174,
+            0.10274089758751821,
+            0.04270549019885689
+          ],
+          "position_error_mm": 0.2811793182448046,
+          "axis_error_mm": [
+            -0.11932880788959044,
+            -0.06370419058050747,
+            -0.2465039973686932
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.001549315839948987
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_min_y_max",
+      "z_cm": 4.0,
+      "target_xyz_m": [
+        0.25,
+        0.1,
+        0.04
+      ],
+      "blue_xy_m": [
+        0.35,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 0.446819304689912,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.24980713454060474,
+            0.09990280233529054,
+            0.039608843995839436
+          ],
+          "actual_gripper_xyz_m": [
+            0.24972879685506233,
+            0.10271615936785176,
+            0.05299349720752154
+          ],
+          "position_error_mm": 0.446819304689912,
+          "axis_error_mm": [
+            -0.19286545939525834,
+            -0.09719766470946134,
+            -0.3911560041605644
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.0016329131218967674
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_min_y_max",
+      "z_cm": 5.0,
+      "target_xyz_m": [
+        0.25,
+        0.1,
+        0.05
+      ],
+      "blue_xy_m": [
+        0.35,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 0.4720963149177521,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.24981461149093578,
+            0.09990649909246858,
+            0.04959908459914346
+          ],
+          "actual_gripper_xyz_m": [
+            0.24973484750973737,
+            0.10259691975202724,
+            0.06276227169165642
+          ],
+          "position_error_mm": 0.45149139266016547,
+          "axis_error_mm": [
+            -0.185388509064216,
+            -0.09350090753142137,
+            -0.4009154008565441
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.0014607513570511503
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_min_y_max",
+      "z_cm": 6.0,
+      "target_xyz_m": [
+        0.25,
+        0.1,
+        0.06
+      ],
+      "blue_xy_m": [
+        0.35,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 0.48633428602340095,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.24982965399356202,
+            0.09991124730694785,
+            0.059592178363053375
+          ],
+          "actual_gripper_xyz_m": [
+            0.2497812916064688,
+            0.10281391430787555,
+            0.07160323319972767
+          ],
+          "position_error_mm": 0.4507918477470511,
+          "axis_error_mm": [
+            -0.17034600643797693,
+            -0.08875269305215483,
+            -0.4078216369466231
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.0013882148529399537
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_min_y_max",
+      "z_cm": 7.0,
+      "target_xyz_m": [
+        0.25,
+        0.1,
+        0.07
+      ],
+      "blue_xy_m": [
+        0.35,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.0931136500387226,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.24969910129367154,
+            0.09981249470094936,
+            0.06905492633800622
+          ],
+          "actual_gripper_xyz_m": [
+            0.24931404648566224,
+            0.10275144965217747,
+            0.08130478160412545
+          ],
+          "position_error_mm": 1.0093871879692928,
+          "axis_error_mm": [
+            -0.30089870632846183,
+            -0.18750529905064983,
+            -0.9450736619937838
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.0019292250415650484
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_min_y_max",
+      "z_cm": 8.0,
+      "target_xyz_m": [
+        0.25,
+        0.1,
+        0.08
+      ],
+      "blue_xy_m": [
+        0.35,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.1342517752020924,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.2501063101162198,
+            0.10005837836636151,
+            0.07940788269850467
+          ],
+          "actual_gripper_xyz_m": [
+            0.24909320085092307,
+            0.1022578848768527,
+            0.0928248035756257
+          ],
+          "position_error_mm": 0.60441109619184,
+          "axis_error_mm": [
+            0.1063101162198099,
+            0.058378366361508394,
+            -0.5921173014953318
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.0018951902271020372
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_min",
+      "z_cm": 3.0,
+      "target_xyz_m": [
+        0.35,
+        -0.1,
+        0.03
+      ],
+      "blue_xy_m": [
+        0.25,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.2024566970281783,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.3498501124350677,
+            -0.09994299003621587,
+            0.029422409566284516
+          ],
+          "actual_gripper_xyz_m": [
+            0.3467872781029648,
+            -0.10295957759277086,
+            0.04062398060904966
+          ],
+          "position_error_mm": 0.5994390104186056,
+          "axis_error_mm": [
+            -0.14988756493228284,
+            0.05700996378413259,
+            -0.577590433715483
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.004124266438329791
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_min",
+      "z_cm": 4.0,
+      "target_xyz_m": [
+        0.35,
+        -0.1,
+        0.04
+      ],
+      "blue_xy_m": [
+        0.25,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.1946958099636078,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.3497651210053885,
+            -0.09992045109737344,
+            0.03915506854075059
+          ],
+          "actual_gripper_xyz_m": [
+            0.34670417311339424,
+            -0.10284245022767172,
+            0.049786773575797444
+          ],
+          "position_error_mm": 0.880571031120225,
+          "axis_error_mm": [
+            -0.2348789946114982,
+            0.07954890262656944,
+            -0.8449314592494095
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.003235720699592518
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_min",
+      "z_cm": 5.0,
+      "target_xyz_m": [
+        0.35,
+        -0.1,
+        0.05
+      ],
+      "blue_xy_m": [
+        0.25,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.2412868511234887,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.349702442339512,
+            -0.09989778212946117,
+            0.04886320623771788
+          ],
+          "actual_gripper_xyz_m": [
+            0.3464107895672748,
+            -0.10253156148462668,
+            0.059457721782980394
+          ],
+          "position_error_mm": 1.179529190963976,
+          "axis_error_mm": [
+            -0.2975576604880015,
+            0.10221787053883713,
+            -1.1367937622821234
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.004669307111985153
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_min",
+      "z_cm": 6.0,
+      "target_xyz_m": [
+        0.35,
+        -0.1,
+        0.06
+      ],
+      "blue_xy_m": [
+        0.25,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.1712384272992988,
+          "simulated_seconds": 2.7000000000003856,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.3497399269751892,
+            -0.09991046606616202,
+            0.058878160926874645
+          ],
+          "actual_gripper_xyz_m": [
+            0.345946635937012,
+            -0.10259212722065314,
+            0.07014027704645005
+          ],
+          "position_error_mm": 1.1550658896935224,
+          "axis_error_mm": [
+            -0.26007302481079186,
+            0.08953393383798192,
+            -1.1218390731253525
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.0045207515878087
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_min",
+      "z_cm": 7.0,
+      "target_xyz_m": [
+        0.35,
+        -0.1,
+        0.07
+      ],
+      "blue_xy_m": [
+        0.25,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.289043127453121,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.3497799716691144,
+            -0.0999129987598466,
+            0.06878512365423449
+          ],
+          "actual_gripper_xyz_m": [
+            0.34584203116685464,
+            -0.10221594980594041,
+            0.07971304666143526
+          ],
+          "position_error_mm": 1.2377019906589388,
+          "axis_error_mm": [
+            -0.22002833088557994,
+            0.08700124015340038,
+            -1.214876345765517
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip1",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.00448394380186881
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_min",
+      "z_cm": 8.0,
+      "target_xyz_m": [
+        0.35,
+        -0.1,
+        0.08
+      ],
+      "blue_xy_m": [
+        0.25,
+        0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.197008425773142,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.34980061387815675,
+            -0.09993060303009339,
+            0.07887615512991648
+          ],
+          "actual_gripper_xyz_m": [
+            0.3458217551651381,
+            -0.1021278224732043,
+            0.0891065731441025
+          ],
+          "position_error_mm": 1.1435025391440723,
+          "axis_error_mm": [
+            -0.1993861218432258,
+            0.0693969699066127,
+            -1.123844870083518
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.004383635299035009
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_max",
+      "z_cm": 3.0,
+      "target_xyz_m": [
+        0.35,
+        0.1,
+        0.03
+      ],
+      "blue_xy_m": [
+        0.25,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.2161215263925536,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.34984472588943866,
+            0.09993981814282393,
+            0.0294137135028828
+          ],
+          "actual_gripper_xyz_m": [
+            0.34699786160636625,
+            0.10299944218573627,
+            0.039791619292491656
+          ],
+          "position_error_mm": 0.6094782703638638,
+          "axis_error_mm": [
+            -0.1552741105613209,
+            -0.060181857176072606,
+            -0.5862864971171999
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.004699765980549521
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_max",
+      "z_cm": 4.0,
+      "target_xyz_m": [
+        0.35,
+        0.1,
+        0.04
+      ],
+      "blue_xy_m": [
+        0.25,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.2050387823117605,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.3498616565201608,
+            0.09994696386181937,
+            0.03941642969347895
+          ],
+          "actual_gripper_xyz_m": [
+            0.34688928575336914,
+            0.10291444933776314,
+            0.049625427527323296
+          ],
+          "position_error_mm": 0.6020847556782971,
+          "axis_error_mm": [
+            -0.13834347983915363,
+            -0.0530361381806399,
+            -0.5835703065210501
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.004308052100671878
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_max",
+      "z_cm": 5.0,
+      "target_xyz_m": [
+        0.35,
+        0.1,
+        0.05
+      ],
+      "blue_xy_m": [
+        0.25,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.1882227694657332,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.34970088035050484,
+            0.09989655607814046,
+            0.04885470521690133
+          ],
+          "actual_gripper_xyz_m": [
+            0.34654411875944324,
+            0.10378010470039341,
+            0.059011754043938394
+          ],
+          "position_error_mm": 1.1882227694657332,
+          "axis_error_mm": [
+            -0.2991196494951387,
+            -0.10344392185954177,
+            -1.1452947830986742
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.004786544662363761
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_max",
+      "z_cm": 6.0,
+      "target_xyz_m": [
+        0.35,
+        0.1,
+        0.06
+      ],
+      "blue_xy_m": [
+        0.25,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.1908013427993238,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.349897742593393,
+            0.099957362681127,
+            0.05942393755037672
+          ],
+          "actual_gripper_xyz_m": [
+            0.346487412590561,
+            0.10289960129384898,
+            0.06956801781983024
+          ],
+          "position_error_mm": 0.5866195223759886,
+          "axis_error_mm": [
+            -0.1022574066069648,
+            -0.04263731887300948,
+            -0.5760624496232782
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.003610625421674945
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_max",
+      "z_cm": 7.0,
+      "target_xyz_m": [
+        0.35,
+        0.1,
+        0.07
+      ],
+      "blue_xy_m": [
+        0.25,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.1802484875061814,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.34991922830711353,
+            0.09996679139957021,
+            0.06943362464748705
+          ],
+          "actual_gripper_xyz_m": [
+            0.3461131615720933,
+            0.10245296444301732,
+            0.07990319846274499
+          ],
+          "position_error_mm": 0.573068859255522,
+          "axis_error_mm": [
+            -0.08077169288644992,
+            -0.03320860042979601,
+            -0.5663753525129572
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.003148180017354315
+        }
+      ],
+      "status": "reached_and_held"
+    },
+    {
+      "corner": "x_max_y_max",
+      "z_cm": 8.0,
+      "target_xyz_m": [
+        0.35,
+        0.1,
+        0.08
+      ],
+      "blue_xy_m": [
+        0.25,
+        -0.1
+      ],
+      "attempts": [
+        {
+          "route": "direct",
+          "status": "reached_and_held",
+          "stage": "hold_at_target",
+          "hold_max_error_mm": 1.1822667826560758,
+          "simulated_seconds": 2.650000000000378,
+          "consecutive_verified_hold_seconds": 0.5,
+          "actual_cube_xyz_m": [
+            0.34979879469604697,
+            0.09992861820973878,
+            0.078871690400352
+          ],
+          "actual_gripper_xyz_m": [
+            0.34580554251832385,
+            0.10199272137921117,
+            0.08912477118210765
+          ],
+          "position_error_mm": 1.1483298685384633,
+          "axis_error_mm": [
+            -0.2012053039530115,
+            -0.07138179026122682,
+            -1.1283095996480057
+          ],
+          "held": true,
+          "unsupported": true,
+          "orange_contact_partners": [
+            "fixed_jaw_box3",
+            "fixed_jaw_box4",
+            "fixed_jaw_sph_tip1",
+            "fixed_jaw_sph_tip2",
+            "fixed_jaw_sph_tip3",
+            "moving_jaw_box2",
+            "moving_jaw_box3",
+            "moving_jaw_sph_tip2",
+            "moving_jaw_sph_tip3"
+          ],
+          "cube_linear_speed_m_s": 0.004472914030419271
+        }
+      ],
+      "status": "reached_and_held"
+    }
+  ],
+  "height_summary": [
+    {
+      "z_cm": 3.0,
+      "corners_passed": 4,
+      "all_corners_passed": true,
+      "failed_corners": []
+    },
+    {
+      "z_cm": 4.0,
+      "corners_passed": 4,
+      "all_corners_passed": true,
+      "failed_corners": []
+    },
+    {
+      "z_cm": 5.0,
+      "corners_passed": 4,
+      "all_corners_passed": true,
+      "failed_corners": []
+    },
+    {
+      "z_cm": 6.0,
+      "corners_passed": 4,
+      "all_corners_passed": true,
+      "failed_corners": []
+    },
+    {
+      "z_cm": 7.0,
+      "corners_passed": 4,
+      "all_corners_passed": true,
+      "failed_corners": []
+    },
+    {
+      "z_cm": 8.0,
+      "corners_passed": 4,
+      "all_corners_passed": true,
+      "failed_corners": []
+    }
+  ],
+  "wall_seconds": 6.874318040907383
+}

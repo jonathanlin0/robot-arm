@@ -1,0 +1,40 @@
+{
+  "evaluated_at": "2026-10-23T16:12:20.244723-05:00",
+  "checkpoint": "/Users/jonathanlin/Documents/GitHub/robot-arm/checkpoints/vision/default.pt",
+  "checkpoint_epoch": 100,
+  "checkpoint_format_version": 3,
+  "checkpoint_validation_loss": 0.03366116635923462,
+  "validation_directory": "/Users/jonathanlin/Documents/GitHub/robot-arm/data/vision/validation",
+  "validation_examples": 3045,
+  "cube_predictions": 6090,
+  "device": "mps",
+  "units": "meters",
+  "metric_definition": {
+    "mae_xyz": "mean of abs(predicted_coordinate - ground_truth_coordinate)",
+    "mean_center_distance": "mean of sqrt(dx**2 + dy**2 + dz**2) per cube prediction"
+  },
+  "orange": {
+    "mae_xyz": [
+      0.0037260732602799078,
+      0.005814813576735807,
+      0.002121004091548215
+    ],
+    "mean_center_distance": 0.008114746535876885
+  },
+  "blue": {
+    "mae_xyz": [
+      0.004395864172326324,
+      0.004999458073842536,
+      0.00044553175886667814
+    ],
+    "mean_center_distance": 0.00742876406856991
+  },
+  "combined": {
+    "mae_xyz": [
+      0.004060968716303116,
+      0.005407135825289172,
+      0.0012832679252074465
+    ],
+    "mean_center_distance": 0.007771755302223397
+  }
+}

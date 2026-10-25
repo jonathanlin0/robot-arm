@@ -15,7 +15,7 @@ from environment import CubeStackEnvironment
 from joint_command_backend import SimJointCommandBackend
 from loop_runner import LoopRunner
 from robot_state_provider import SimRobotStateProvider
-from schemas import CAMERA_IMAGE_SHAPE, OBSERVATION_FIELDS, CameraFrame
+from schemas import CAMERA_IMAGE_SHAPES, OBSERVATION_FIELDS, CameraFrame
 from schemas.config import load_config
 from trained_policy import TrainedPolicy
 
@@ -45,7 +45,7 @@ class ImagePoseModel(torch.nn.Module):
     def forward(self, wrist, external, joint_positions):
         self.inputs.append((wrist.clone(), external.clone(), joint_positions.clone()))
         poses = torch.tensor(
-            [[0.11, 0.12, 0.13, 1, 0, 0, 0, 0.21, -0.22, 0.23, 1, 0, 0, 0]],
+            [[0.11, 0.12, 0.13, 3, 4, 0.21, -0.22, 0.23, 0, -2]],
             dtype=torch.float32,
         )
         # A changed image changes the estimate; no MuJoCo state is accessible.
@@ -99,7 +99,7 @@ def test_two_full_ticks_use_image_estimates_and_share_one_simulator():
             buffers[name].record_read(
                 success=True,
                 frame=CameraFrame(camera_id=name, timestamp=float(environment.data.time),
-                                  rgb=np.full(CAMERA_IMAGE_SHAPE, value, dtype=np.uint8)),
+                                  rgb=np.full(CAMERA_IMAGE_SHAPES[name], value, dtype=np.uint8)),
             )
 
     publish(255)
@@ -113,11 +113,15 @@ def test_two_full_ticks_use_image_estimates_and_share_one_simulator():
     np.testing.assert_array_equal(first.receipt.joint_targets, state_provider.read().commanded_joint_targets)
     issued_xyz = controller.prev_accepted_target.copy()
     tokens, valid, starts = actions.histories[0]
-    assert tokens.dtype == torch.float32 and tokens.shape == (1, 1, 48)
+    assert tokens.dtype == torch.float32 and tokens.shape == (1, 1, 44)
     assert valid.tolist() == [[True]] and starts.tolist() == [[True]]
     np.testing.assert_allclose(tokens[0, 0, 21:24], first.cube_states["orange"].position)
-    np.testing.assert_array_equal(tokens[0, 0, 41:45], np.zeros(4))
-    np.testing.assert_allclose(tokens[0, 0, 45:48], initial_state.gripper_position, atol=1e-7)
+    assert first.cube_states["orange"].orientation is None
+    assert first.cube_states["blue"].orientation is None
+    np.testing.assert_allclose(tokens[0, 0, 24:26], [0.6, 0.8], atol=1e-7)
+    np.testing.assert_allclose(tokens[0, 0, 32:34], [0., -1.], atol=1e-7)
+    np.testing.assert_array_equal(tokens[0, 0, 37:41], np.zeros(4))
+    np.testing.assert_allclose(tokens[0, 0, 41:44], initial_state.gripper_position, atol=1e-7)
 
     # Alter hidden simulator cube state independently of the synthetic camera
     # images. Runtime perception must still consume only image/model outputs.
@@ -136,14 +140,15 @@ def test_two_full_ticks_use_image_estimates_and_share_one_simulator():
     np.testing.assert_allclose(second.cube_states["orange"].linear_velocity, [-0.2, 0, 0], atol=2e-7)
     np.testing.assert_allclose(second.cube_states["blue"].position, [0.21, -0.22, 0.23])
     tokens, valid, starts = actions.histories[1]
-    assert tokens.shape == (1, 2, 48)
+    assert tokens.shape == (1, 2, 44)
     assert valid.tolist() == [[True, True]] and starts.tolist() == [[True, False]]
     np.testing.assert_allclose(tokens[0, 1, 21:24], second.cube_states["orange"].position)
-    np.testing.assert_allclose(tokens[0, 1, 28:31], [-0.2, 0, 0], atol=2e-7)
-    np.testing.assert_array_equal(tokens[0, 1, 41:45], first.action)
-    np.testing.assert_allclose(tokens[0, 1, 45:48], issued_xyz, atol=1e-7)
+    np.testing.assert_allclose(tokens[0, 1, 26:29], [-0.2, 0, 0], atol=2e-7)
+    np.testing.assert_array_equal(tokens[0, 1, 37:41], first.action)
+    np.testing.assert_allclose(tokens[0, 1, 41:44], issued_xyz, atol=1e-7)
     for wrist, external, joints in poses.inputs:
-        assert wrist.shape == external.shape == (1, 3, 300, 300)
+        assert wrist.shape == (1, 3, 128, 128)
+        assert external.shape == (1, 3, 300, 300)
         assert wrist.dtype == external.dtype == joints.dtype == torch.float32
         assert joints.shape == (1, 6)
         assert external[0, 0, 0, 0].item() == pytest.approx(127 / 255)

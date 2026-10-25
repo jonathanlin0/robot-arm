@@ -1,7 +1,12 @@
 {
   "vision_model": {
     "adapter_kernel_size": 3,
-    "backbone_weights": "IMAGENET1K_V2",
+    "backbone_weights": "IMAGENET1K_V1",
+    "wrist_cnn": {
+      "layers": 2,
+      "channels": [16, 16],
+      "embedding_dim": 128
+    },
     "mlp_hidden_layers": 1,
     "mlp_hidden_dim": 2048,
     "dropout": 0.1
@@ -13,7 +18,7 @@
       "feedforward_dim": 512,
       "heads": 4,
       "layers": 4,
-      "dropout": 0.0
+      "dropout": 0.1
     },
     "mlp_hidden_dims": [
       128,
@@ -25,15 +30,22 @@
   "training": {
     "vision": {
       "randaugment": {
-        "magnitude": 5,
+        "magnitude": 7,
         "num_ops": 2
       },
       "position_loss_weight": 200.0,
       "orientation_loss_weight": 1.0,
       "learning_rate": 0.0001,
+      "lr_scheduler": {
+        "type": "reduce_on_plateau",
+        "factor": 0.5,
+        "patience": 1,
+        "threshold": 0.001,
+        "min_lr": 0.000001
+      },
       "weight_decay": 0.0001,
-      "batch_size": 8,
-      "epochs": 100,
+      "batch_size": 16,
+      "epochs": 200,
       "seed": 42,
       "num_workers": 0,
       "device": "auto",
@@ -60,6 +72,22 @@
       "data_dir": "data/action",
       "checkpoint_path": "checkpoints/action/default.pt",
       "stride": 256,
+      "rollout_validation": {
+        "episodes": 200,
+        "seed": 43,
+        "cube_x_range": [0.25, 0.35],
+        "cube_y_range": [-0.1, 0.1],
+        "minimum_cube_separation": 0.08,
+        "start_position": [0.2, 0.0, 0.05],
+        "start_position_half_range": [0.04, 0.04, 0.0],
+        "success": {
+          "max_horizontal_center_offset": 0.01,
+          "vertical_center_tolerance": 0.005,
+          "max_linear_speed": 0.01,
+          "max_angular_speed": 0.05,
+          "required_stable_time": 1.0
+        }
+      },
       "optimizer_betas": [
         0.9,
         0.999
@@ -73,9 +101,10 @@
     "scene_path": "scenes/so101_two_cube_stack.xml",
     "episode_seconds": 45.0,
     "vision_data": {
-      "sequences": 100,
+      "sequences": 1200,
+      "samples_per_sequence": 5,
       "sample_interval_steps": 20,
-      "train_fraction": 0.8,
+      "train_fraction": 0.8333333333333334,
       "joint_step_std": 0.025,
       "cube_x_range": [
         0.25,
@@ -113,14 +142,24 @@
         0.08
       ],
       "shadows_enabled": true,
-      "wall_brightness_range": [
-        0.08,
-        0.9
-      ],
-      "wall_saturation_range": [
-        0.0,
-        0.096
-      ],
+      "specular_mean": 0.65,
+      "specular_variance": 0.55,
+      "specular_min": 0.1,
+      "specular_max": 0.8,
+      "shininess_mean": 0.65,
+      "shininess_variance": 0.55,
+      "shininess_min": 0.1,
+      "shininess_max": 0.8,
+      "reflectance_mean": 0.2,
+      "reflectance_variance": 0.33,
+      "reflectance_min": 0.0,
+      "reflectance_max": 0.7,
+      "paper_color_variation": {
+        "hue_shift": 0.01,
+        "saturation_scale": 0.10,
+        "brightness_scale": 0.12,
+        "warmth": 0.025
+      },
       "image_noise_std": 2.0,
       "blur_probability": 0.1,
       "exposure_range": [
@@ -161,17 +200,13 @@
       ],
       "cube_pose_modes": [
         "ground",
-        "elevated",
         "stacked",
-        "task",
-        "carry"
+        "task"
       ],
       "cube_pose_mode_probabilities": [
+        0.3,
         0.1,
-        0.1,
-        0.1,
-        0.6,
-        0.1
+        0.6
       ],
       "task": {
         "waypoint_height": 0.08,
@@ -194,6 +229,50 @@
         "z_range": [0.08, 0.13]
       },
       "minimum_cube_separation": 0.06
+    },
+    "action_data": {
+      "train_fraction": 0.8,
+      "maximum_attempts_per_example": 10,
+      "cube_x_range": [0.25, 0.35],
+      "cube_y_range": [-0.1, 0.1],
+      "minimum_cube_separation": 0.08,
+      "spawn_maximum_attempts": 1000,
+      "start_position": [0.2, 0.0, 0.05],
+      "start_position_half_range": [0.04, 0.04, 0.0],
+      "drop_disturbance": {
+        "probability": 0.002,
+        "stop_seconds": 0.25,
+        "release_seconds": 0.25
+      },
+      "recovery": {
+        "lost_grasp_steps": 2,
+        "pause_steps": 5,
+        "settle_steps": 5,
+        "max_linear_speed": 0.01,
+        "max_angular_speed": 0.1,
+        "waypoint_grasp_retry_seconds": 5.0
+      },
+      "teacher": {
+        "waypoint_height": 0.08,
+        "grasp_radial_offset": 0.007,
+        "grasp_height_offset": 0.005,
+        "position_tolerance": 0.0015,
+        "consecutive_near_steps": 3,
+        "maximum_move_steps": 200,
+        "open_settle_steps": 10,
+        "close_gripper_steps": 20,
+        "lift_settle_steps": 10,
+        "release_steps": 10,
+        "retreat_distance": 0.05,
+        "extra_hold_steps": 20
+      },
+      "success": {
+        "max_horizontal_center_offset": 0.01,
+        "vertical_center_tolerance": 0.005,
+        "max_linear_speed": 0.01,
+        "max_angular_speed": 0.05,
+        "required_stable_time": 1.0
+      }
     }
   },
   "cameras": {

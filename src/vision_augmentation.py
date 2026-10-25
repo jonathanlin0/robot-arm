@@ -1,9 +1,18 @@
-"""Fresh torchvision RandAugment for saved two-camera training samples."""
+"""Fresh RandAugment without solarization for saved two-camera training samples."""
 
 import torch
 from torch import Tensor
 from torch.utils.data import Dataset, TensorDataset
 from torchvision.transforms import RandAugment
+
+
+class RandAugmentWithoutSolarize(RandAugment):
+    """Keep torchvision's augmentation choices except intensity inversion."""
+
+    def _augmentation_space(self, num_bins: int, image_size: tuple[int, int]):
+        operations = super()._augmentation_space(num_bins, image_size)
+        operations.pop("Solarize", None)
+        return operations
 
 
 class AugmentedVisionDataset(Dataset[tuple[Tensor, Tensor, Tensor, Tensor]]):

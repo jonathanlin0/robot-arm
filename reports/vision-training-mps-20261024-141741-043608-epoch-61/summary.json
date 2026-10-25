@@ -1,0 +1,86 @@
+{
+  "source": "/Users/jonathanlin/Documents/GitHub/robot-arm/logs/vision-training-mps-20261024-141741-043608.metrics.log",
+  "snapshot_at": "2026-10-24T17:00:58.158542-05:00",
+  "latest_completed_epoch": 61,
+  "training_loss": 0.011789,
+  "latest_validation": {
+    "epoch": 60,
+    "train_loss": 0.011631,
+    "val_loss": 0.014529,
+    "val_position_error_m": 0.004222,
+    "learning_rate": 5e-05,
+    "next_learning_rate": 5e-05
+  },
+  "best_validation": {
+    "epoch": 60,
+    "train_loss": 0.011631,
+    "val_loss": 0.014529,
+    "val_position_error_m": 0.004222,
+    "learning_rate": 5e-05,
+    "next_learning_rate": 5e-05
+  },
+  "validation": [
+    {
+      "epoch": 10,
+      "train_loss": 0.050536,
+      "val_loss": 0.029667,
+      "val_position_error_m": 0.009645,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 0.0001
+    },
+    {
+      "epoch": 20,
+      "train_loss": 0.032135,
+      "val_loss": 0.026794,
+      "val_position_error_m": 0.007094,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 0.0001
+    },
+    {
+      "epoch": 30,
+      "train_loss": 0.024893,
+      "val_loss": 0.02054,
+      "val_position_error_m": 0.006264,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 0.0001
+    },
+    {
+      "epoch": 40,
+      "train_loss": 0.024083,
+      "val_loss": 0.02143,
+      "val_position_error_m": 0.006126,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 0.0001
+    },
+    {
+      "epoch": 50,
+      "train_loss": 0.017535,
+      "val_loss": 0.024945,
+      "val_position_error_m": 0.005927,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 5e-05
+    },
+    {
+      "epoch": 60,
+      "train_loss": 0.011631,
+      "val_loss": 0.014529,
+      "val_position_error_m": 0.004222,
+      "learning_rate": 5e-05,
+      "next_learning_rate": 5e-05
+    }
+  ],
+  "learning_rate_reductions": [
+    {
+      "epoch": 50,
+      "train_loss": 0.017535,
+      "val_loss": 0.024945,
+      "val_position_error_m": 0.005927,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 5e-05
+    }
+  ],
+  "current_console_phase": [
+    "62",
+    "training"
+  ]
+}

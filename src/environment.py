@@ -1,5 +1,6 @@
 """The shared MuJoCo simulation resource used by sensors and commands."""
 
+from collections.abc import Callable
 from pathlib import Path
 from threading import RLock
 
@@ -18,9 +19,17 @@ class CubeStackEnvironment:
     ``state_lock`` so snapshots cannot observe partially updated physics.
     """
 
-    def __init__(self, scene_path: Path | str = DEFAULT_SCENE_PATH) -> None:
+    def __init__(self, scene_path: Path | str = DEFAULT_SCENE_PATH, *,
+                 configure_spec: Callable[[mujoco.MjSpec], None] | None = None) -> None:
         self.scene_path = Path(scene_path).expanduser().resolve()
-        self.model = mujoco.MjModel.from_xml_path(str(self.scene_path))
+        if configure_spec is None:
+            self.model = mujoco.MjModel.from_xml_path(str(self.scene_path))
+        else:
+            # Add generation-only assets in memory before model/data allocation.
+            # Runtime environments continue to load the original scene directly.
+            spec = mujoco.MjSpec.from_file(str(self.scene_path))
+            configure_spec(spec)
+            self.model = spec.compile()
         self.data = mujoco.MjData(self.model)
         self.state_lock = RLock()
         self.reset()

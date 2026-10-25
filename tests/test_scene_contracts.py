@@ -72,6 +72,22 @@ def test_wall_inside_bounds_and_dimensions(scene_model, name, axis, sign, inner_
     assert wall.pos[2] - wall.size[2] == pytest.approx(0.0)
 
 
+@pytest.mark.parametrize("names,rgb", [
+    (("wall_x_min", "wall_x_max"), (182, 69, 69)),
+    (("wall_y_min", "wall_y_max"), (78, 138, 84)),
+    (("table",), (146, 104, 73)),
+])
+def test_runtime_uses_shared_construction_paper_bases(scene_model, names, rgb):
+    material = scene_model.material("construction_paper").id
+    for name in names:
+        geom = scene_model.geom(name)
+        np.testing.assert_allclose(geom.rgba[:3], np.asarray(rgb) / 255, atol=1e-7)
+        assert geom.rgba[3] == 1
+        assert geom.matid[0] == material
+    for property_name, expected in (("specular", 0.2), ("shininess", 0.1), ("reflectance", 0.0)):
+        assert getattr(scene_model, f"mat_{property_name}")[material] == pytest.approx(expected)
+
+
 def test_gripper_reference_is_rigid_when_only_the_jaw_opens(scene_model):
     data = mujoco.MjData(scene_model)
     positions = []

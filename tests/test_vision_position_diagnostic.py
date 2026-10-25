@@ -52,20 +52,26 @@ def make_loader(targets, wrist=None, external=None):
     return DataLoader(TensorDataset(wrist, external, joints, targets), batch_size=2)
 
 
-def test_axis_mae_averages_examples_and_ignores_orientation(diagnostic):
-    targets = torch.arange(42, dtype=torch.float32).reshape(3, 14) / 100
+@pytest.mark.parametrize("device_name", [
+    "cpu",
+    pytest.param("mps", marks=pytest.mark.skipif(
+        not torch.backends.mps.is_available(), reason="MPS is unavailable")),
+])
+def test_axis_mae_averages_examples_and_ignores_orientation(diagnostic, device_name):
+    targets = torch.arange(30, dtype=torch.float32).reshape(3, 10) / 100
     predictions = targets.clone()
     predictions[:, :3] += torch.tensor([
         [0.01, -0.02, 0.03], [-0.01, 0.04, -0.09], [0.10, -0.15, 0.18],
     ])
-    predictions[:, 7:10] += torch.tensor([
+    predictions[:, 5:8] += torch.tensor([
         [0.02, -0.01, 0.04], [-0.04, 0.02, -0.08], [0.12, -0.09, 0.24],
     ])
-    predictions[:, 3:7] = 1e6
-    predictions[:, 10:14] = -1e6
-    model = RecordedPredictions(predictions).train()
+    predictions[:, 3:5] = 1e6
+    predictions[:, 8:10] = -1e6
+    device = torch.device(device_name)
+    model = RecordedPredictions(predictions).to(device).train()
 
-    count, error = diagnostic.evaluate_position_error(model, make_loader(targets), torch.device("cpu"))
+    count, error = diagnostic.evaluate_position_error(model, make_loader(targets), device)
 
     assert count == 3
     assert error.shape == (2, 3)
@@ -86,7 +92,7 @@ def test_images_match_training_normalization(diagnostic, dtype):
         external = external.float() / 255
     expected_wrist = wrist.float() / 255 if dtype == torch.uint8 else wrist
     expected_external = external.float() / 255 if dtype == torch.uint8 else external
-    targets = torch.zeros(3, 14)
+    targets = torch.zeros(3, 10)
     model = RecordedPredictions(targets)
 
     diagnostic.evaluate_position_error(model, make_loader(targets, wrist, external), torch.device("cpu"))
@@ -96,7 +102,7 @@ def test_images_match_training_normalization(diagnostic, dtype):
 
 
 def test_empty_validation_loader_is_an_error(diagnostic):
-    targets = torch.zeros(0, 14)
+    targets = torch.zeros(0, 10)
     model = RecordedPredictions(targets)
 
     with pytest.raises(ValueError, match=r"(?i)(empty|no .*examples|no .*samples|zero)"):
@@ -120,7 +126,7 @@ def test_cli_uses_selected_checkpoint_and_unaugmented_validation_data(
         arguments.extend(["--checkpoint", str(selected)])
     monkeypatch.setattr(sys, "argv", arguments)
 
-    dataset = TensorDataset(torch.zeros(3, 14))
+    dataset = TensorDataset(torch.zeros(3, 10))
     loader, model = object(), object()
     device = torch.device("cpu")
     calls = {}

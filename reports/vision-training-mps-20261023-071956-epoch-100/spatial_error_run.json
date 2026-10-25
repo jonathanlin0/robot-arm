@@ -1,0 +1,24 @@
+{
+  "evaluated_at": "2026-10-23T23:14:29.736867-05:00",
+  "checkpoint": "/Users/jonathanlin/Documents/GitHub/robot-arm/checkpoints/vision/default.pt",
+  "checkpoint_sha256": "eb92583da1ec8c0353bd520bf239c4aa5cd84abb23c29bd3a67458a033c4d32c",
+  "checkpoint_epoch": 100,
+  "checkpoint_validation_loss": 0.03366116635923462,
+  "validation_directory": "/Users/jonathanlin/Documents/GitHub/robot-arm/data/vision/validation",
+  "validation_examples": 3045,
+  "cube_predictions": 6090,
+  "device": "mps",
+  "batch_size": 16,
+  "bin_width_cm": 1.0,
+  "metric": "sqrt((pred_x-true_x)^2 + (pred_y-true_y)^2 + (pred_z-true_z)^2)",
+  "mean_distance_error_mm": 7.771755361676384,
+  "per_cube_mean_distance_error_mm": {
+    "orange": 8.114746557435343,
+    "blue": 7.428764165917439
+  },
+  "prediction_file": "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/vision-training-mps-20261023-071956-epoch-100/validation_position_predictions.npz",
+  "plots": [
+    "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/vision-training-mps-20261023-071956-epoch-100/spatial_error_xy.png",
+    "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/vision-training-mps-20261023-071956-epoch-100/spatial_error_z.png"
+  ]
+}

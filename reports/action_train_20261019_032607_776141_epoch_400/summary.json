@@ -1,0 +1,16 @@
+{
+  "source": "/Users/jonathanlin/Documents/GitHub/robot-arm/logs/action_train_20261019_032607_776141.log",
+  "snapshot_utc": "2026-10-21T15:19:37.550731+00:00",
+  "latest_epoch": 400,
+  "latest_train_loss": 0.00116,
+  "latest_validation_epoch": 400,
+  "latest_validation_loss": 0.002605,
+  "validation_checks": 40,
+  "latest_rollout_success_rate_pct": 0.0,
+  "best_validation": {
+    "epoch": 290,
+    "train_loss": 0.001538,
+    "val_loss": 0.002483,
+    "val_success_rate_pct": 0.0
+  }
+}

@@ -7,6 +7,7 @@ Run from the repository root (no PYTHONPATH setup needed):
 The default checkpoint and validation data directory come from training.vision
 in the selected config. With the default config, these are
 checkpoints/vision/default.pt and data/vision/validation/.
+Loads every saved validation example, as the training script does.
 """
 
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
@@ -44,10 +45,12 @@ def evaluate_position_error(model: VisionModel, loader: DataLoader,
             joints, poses = joints.to(device), poses.to(device)
             prediction = model(wrist, external, joints)
             batch_count = len(joints)
-            predicted_xyz = prediction.reshape(batch_count, 2, 7)[..., :3]
-            expected_xyz = poses.reshape(batch_count, 2, 7)[..., :3]
+            predicted_xyz = prediction.reshape(batch_count, 2, 5)[..., :3]
+            expected_xyz = poses.reshape(batch_count, 2, 5)[..., :3]
             errors = (predicted_xyz - expected_xyz).abs()
-            absolute_error_sum += errors.to(device="cpu", dtype=torch.float64).sum(dim=0)
+            # Cast only after transfer: combined MPS-to-CPU float64 conversion
+            # can silently return zeros on MPS.
+            absolute_error_sum += errors.cpu().double().sum(dim=0)
             count += batch_count
     if count == 0:
         raise ValueError("Validation loader contains no examples.")

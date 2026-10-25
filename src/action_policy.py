@@ -10,7 +10,7 @@ from schemas.config import ActionPolicyConfig
 
 
 class ActionPolicy(nn.Module):
-    """Encode 48-value history tokens and predict bounded Cartesian actions.
+    """Encode 44-value history tokens and predict bounded Cartesian actions.
 
     valid and episode_start are separate boolean [batch, time] masks. Histories
     contain a contiguous real prefix followed by right padding. The forward

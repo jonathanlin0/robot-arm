@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
+from cube_yaw import normalize_yaw_tensor
 from schemas import CameraFrames, CubeState, CubeStates, RobotState
 from vision_errors import MAXIMUM_FRAME_AGE_SECONDS, StaleVisionDataError, VisionDataUnavailableError
 
@@ -28,7 +29,8 @@ class CubeStateProvider:
         """Use latest readings without synchronization or pose-value gating.
 
         Images become BCHW float32 / 255; joints retain their radian units.
-        The model returns orange XYZ/quaternion followed by blue XYZ/quaternion.
+        The model returns orange XYZ/yaw-pair followed by blue XYZ/yaw-pair.
+        Normalize yaw pairs on the inference device before constructing states.
         Repeated/nonincreasing estimate times preserve the velocity baseline.
         """
         required = ("wrist", "external")
@@ -48,10 +50,16 @@ class CubeStateProvider:
                                  device=self.device).unsqueeze(0)
         with torch.inference_mode():
             self.model.eval()
-            poses = self.model(images[0], images[1], joints)[0].to(device="cpu", dtype=torch.float32).numpy()
+            prediction = self.model(images[0], images[1], joints)
+            if prediction.shape != (1, 10):
+                raise ValueError("Vision model must return [batch, 10] XYZ/yaw-pair predictions.")
+            poses = prediction[0].clone()
+            for offset in (0, 5):
+                poses[offset + 3:offset + 5] = normalize_yaw_tensor(poses[offset + 3:offset + 5])
+            poses = poses.to(device="cpu", dtype=torch.float32).numpy()
 
         estimates: CubeStates = {}
-        for name, offset in (("orange", 0), ("blue", 7)):
+        for name, offset in (("orange", 0), ("blue", 5)):
             position = poses[offset:offset + 3].copy()
             velocity = np.zeros(3, dtype=np.float32)
             if self.previous_estimates is not None:
@@ -61,13 +69,13 @@ class CubeStateProvider:
                             else previous.linear_velocity.copy())
             estimates[name] = CubeState(
                 timestamp=current_time, position=position,
-                orientation=poses[offset + 3:offset + 7].copy(), linear_velocity=velocity,
+                orientation=None, linear_velocity=velocity, yaw=poses[offset + 3:offset + 5].copy(),
             )
         if (self.previous_estimates is None
                 or current_time > self.previous_estimates["orange"].timestamp):
             self.previous_estimates = {
                 name: CubeState(timestamp=state.timestamp, position=state.position.copy(),
-                                orientation=state.orientation.copy(), linear_velocity=state.linear_velocity.copy())
+                                orientation=None, linear_velocity=state.linear_velocity.copy(), yaw=state.yaw.copy())
                 for name, state in estimates.items()
             }
         return estimates

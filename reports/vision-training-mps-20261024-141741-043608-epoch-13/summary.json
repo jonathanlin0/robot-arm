@@ -1,0 +1,17 @@
+{
+  "source": "/Users/jonathanlin/Documents/GitHub/robot-arm/logs/vision-training-mps-20261024-141741-043608.metrics.log",
+  "snapshot_at": "2026-10-24T14:53:03.842180-05:00",
+  "latest_completed_epoch": 13,
+  "training_loss": 0.050784,
+  "validation": [
+    {
+      "epoch": 10,
+      "train_loss": 0.050536,
+      "val_loss": 0.029667,
+      "val_position_error_m": 0.009645,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 0.0001
+    }
+  ],
+  "training_loss_reduction_percent": 93.1738265498145
+}

@@ -1,0 +1,82 @@
+{
+  "snapshot_started": "2026-10-24T12:02:04.703773-05:00",
+  "snapshot_finished": "2026-10-24T12:02:04.726366-05:00",
+  "runs": [
+    {
+      "path": "/Users/jonathanlin/Documents/GitHub/robot-arm/logs/vision-workspace-20261024-115748-f85f0035.log",
+      "saved": 505,
+      "failed": 141,
+      "settled_attempts": 646,
+      "last_event_time": "2026-10-24T12:02:04.314749-05:00",
+      "last_event": "SCENE_CREATED",
+      "last_saved_counter": 505,
+      "incomplete_tail_lines": 0
+    },
+    {
+      "path": "/Users/jonathanlin/Documents/GitHub/robot-arm/logs/vision-workspace-20261024-115756-e015ba47.log",
+      "saved": 473,
+      "failed": 134,
+      "settled_attempts": 607,
+      "last_event_time": "2026-10-24T12:02:03.842799-05:00",
+      "last_event": "SCENE_CREATED",
+      "last_saved_counter": 473,
+      "incomplete_tail_lines": 0
+    },
+    {
+      "path": "/Users/jonathanlin/Documents/GitHub/robot-arm/logs/vision-workspace-20261024-115804-1f379d96.log",
+      "saved": 436,
+      "failed": 135,
+      "settled_attempts": 571,
+      "last_event_time": "2026-10-24T12:02:04.639554-05:00",
+      "last_event": "SAMPLE_SAVED",
+      "last_saved_counter": 436,
+      "incomplete_tail_lines": 0
+    },
+    {
+      "path": "/Users/jonathanlin/Documents/GitHub/robot-arm/logs/vision-workspace-20261024-115806-d414a0e6.log",
+      "saved": 455,
+      "failed": 136,
+      "settled_attempts": 591,
+      "last_event_time": "2026-10-24T12:02:04.614440-05:00",
+      "last_event": "SAMPLE_FAILURE",
+      "last_saved_counter": 455,
+      "incomplete_tail_lines": 0
+    }
+  ],
+  "total_saved": 1869,
+  "total_failed_samples": 546,
+  "total_settled_attempts": 2415,
+  "success_rate_percent": 77.3913043478261,
+  "failure_rate_percent": 22.608695652173914,
+  "reasons": [
+    {
+      "reason": "Orange grasp lost before target",
+      "count": 543,
+      "percent_of_failures": 99.45054945054945,
+      "percent_of_attempts": 22.48447204968944
+    },
+    {
+      "reason": "Pickup failed to establish grasp",
+      "count": 3,
+      "percent_of_failures": 0.5494505494505495,
+      "percent_of_attempts": 0.12422360248447205
+    }
+  ],
+  "failure_types": {
+    "DemonstrationFailure": 546
+  },
+  "scene_creation_failures": [],
+  "run_aborts": [],
+  "raw_failure_messages": [
+    {
+      "type": "DemonstrationFailure",
+      "message": "Orange grasp was lost before reaching the target.",
+      "count": 543
+    },
+    {
+      "type": "DemonstrationFailure",
+      "message": "Pickup failed to produce a measured two-jaw grasp.",
+      "count": 3
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+epoch=0 train_loss=NaN val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=1 train_loss=0.743960 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=2 train_loss=0.161961 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=3 train_loss=0.123050 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=4 train_loss=0.117879 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=5 train_loss=0.107279 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=6 train_loss=0.080136 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=7 train_loss=0.073177 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=8 train_loss=0.063628 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=9 train_loss=0.059718 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=10 train_loss=0.050536 val_loss=0.029667 val_position_error_m=0.009645 learning_rate=0.0001 next_learning_rate=0.0001
+epoch=11 train_loss=0.049852 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=12 train_loss=0.045592 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001
+epoch=13 train_loss=0.050784 val_loss=NaN val_position_error_m=NaN learning_rate=0.0001 next_learning_rate=0.0001

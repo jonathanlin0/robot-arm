@@ -1,0 +1,24 @@
+{
+  "evaluated_at": "2026-10-24T21:19:44.063530-05:00",
+  "checkpoint": "/Users/jonathanlin/Documents/GitHub/robot-arm/checkpoints/vision/default.pt",
+  "checkpoint_sha256": "dab46a03154f6d7d1458ba58bc00ded7d735dc197cde4442fa758694975047b7",
+  "checkpoint_epoch": 100,
+  "checkpoint_validation_loss": 0.014775286930627754,
+  "validation_directory": "/Users/jonathanlin/Documents/GitHub/robot-arm/data/vision/validation",
+  "validation_examples": 4750,
+  "cube_predictions": 9500,
+  "device": "cpu",
+  "batch_size": 8,
+  "bin_width_cm": 1.0,
+  "metric": "sqrt((pred_x-true_x)^2 + (pred_y-true_y)^2 + (pred_z-true_z)^2)",
+  "mean_distance_error_mm": 9.71301828771908,
+  "per_cube_mean_distance_error_mm": {
+    "orange": 13.254703276616121,
+    "blue": 6.17133329882202
+  },
+  "prediction_file": "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/vision-position-errors-20261024-211734-317131/validation_position_predictions.npz",
+  "plots": [
+    "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/vision-position-errors-20261024-211734-317131/spatial_error_xy.png",
+    "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/vision-position-errors-20261024-211734-317131/spatial_error_z.png"
+  ]
+}

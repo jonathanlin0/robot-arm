@@ -10,6 +10,7 @@ import pytest
 from camera_feed_getter import SIM_CAMERA_NAMES
 from environment import CubeStackEnvironment
 from schemas.config import load_config
+from vision_materials import configure_vision_materials
 from vision_data import AugmentedRenderer, _apply_focus_blur, randomize_visual_setup
 
 
@@ -152,9 +153,11 @@ def test_focus_handles_black_pixels_zero_depth_and_sky_depth():
 def test_new_camera_settings_are_sampled_independently_and_reproducibly():
     project = load_config(ROOT / "configs/default.json")
     parameters = project.environment.vision_data
-    first = randomize_visual_setup(CubeStackEnvironment(project.environment.scene_path),
+    first = randomize_visual_setup(CubeStackEnvironment(project.environment.scene_path,
+                                                        configure_spec=configure_vision_materials),
                                    parameters, np.random.default_rng(42))
-    repeated = randomize_visual_setup(CubeStackEnvironment(project.environment.scene_path),
+    repeated = randomize_visual_setup(CubeStackEnvironment(project.environment.scene_path,
+                                                        configure_spec=configure_vision_materials),
                                       parameters, np.random.default_rng(42))
     assert first == repeated
     ranges = {

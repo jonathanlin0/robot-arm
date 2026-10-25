@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any, TypeAlias
 import numpy as np
 from numpy.typing import NDArray
-from schemas.arrays import JointVector, Vec3
+from schemas.arrays import CAMERA_IMAGE_SHAPES, JointVector, Vec3
 
 @dataclass
 class RobotState:
@@ -25,9 +25,10 @@ class RobotState:
 
 @dataclass
 class CameraFrame:
-    """One 300x300 RGB image, identifier, and source sample timestamp.
+    """One RGB image, identifier, and source sample timestamp.
 
-    Incoming images already have this resolution; resizing/cropping is deferred.
+    Incoming wrist images are 128x128; external images are 300x300. Images
+    already have the camera's resolution; resizing/cropping is deferred.
     Retain the sample timestamp when the same buffered frame is read again.
     Keep uint8 values in [0, 255] here; CubeStateProvider converts model inputs
     to float32 and divides by 255.0 without modifying this raw image.
@@ -35,7 +36,17 @@ class CameraFrame:
 
     camera_id: str
     timestamp: float
-    rgb: NDArray[np.uint8]  # Shape CAMERA_IMAGE_SHAPE; no resize/crop here.
+    rgb: NDArray[np.uint8]  # Shape CAMERA_IMAGE_SHAPES[camera_id]; no resize/crop here.
+
+    def __post_init__(self) -> None:
+        if self.camera_id not in CAMERA_IMAGE_SHAPES:
+            raise ValueError(f"Unknown camera ID {self.camera_id!r}.")
+        expected = CAMERA_IMAGE_SHAPES[self.camera_id]
+        if self.rgb.shape != expected:
+            raise ValueError(
+                f"Camera {self.camera_id!r} requires RGB image shape {expected}; "
+                f"got {self.rgb.shape}."
+            )
 
 
 CameraFrames: TypeAlias = dict[str, CameraFrame]
@@ -44,20 +55,20 @@ CameraFrames: TypeAlias = dict[str, CameraFrame]
 
 @dataclass
 class CubeState:
-    """Estimated cube pose and linear velocity relative to the robot base.
+    """Cube position, orientation representation, and velocity in the robot base.
 
     timestamp is the combined observation's current session time. Latest
     images/joint readings may have different sample times; no synchronization
-    is implied by this estimate timestamp.
+    is implied by this estimate timestamp. Raw simulator observations retain a
+    quaternion; learned vision supplies only the normalized yaw pair.
     """
 
     timestamp: float
     position: Vec3
-    orientation: NDArray[np.floating[Any]]  # Quaternion (w, x, y, z).
+    orientation: NDArray[np.floating[Any]] | None  # Raw quaternion (w, x, y, z), when available.
     linear_velocity: Vec3
+    yaw: NDArray[np.floating[Any]] | None = None  # Already normalized with epsilon; never normalize again.
 
 
 CubeStates: TypeAlias = dict[str, CubeState]
 """Cube estimates keyed by 'orange' and 'blue'."""
-
-

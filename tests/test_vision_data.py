@@ -1,4 +1,4 @@
-"""Saved vision data, fixed setup augmentation, and asynchronous sample contracts."""
+"""Saved vision data, fixed setup augmentation, and synchronous sample contracts."""
 
 from pathlib import Path
 
@@ -9,13 +9,15 @@ import torch
 
 from camera_feed_getter import SIM_CAMERA_NAMES
 from environment import CubeStackEnvironment
-from schemas import CameraFrame
+from robot_state_provider import SimRobotStateProvider
 from schemas.config import load_config
+from training import load_vision_dataset
+from vision_materials import configure_vision_materials
 from vision_data import (
     AugmentedRenderer, collect_sequence, cube_pose_labels, generate_vision_data,
     randomize_cube_poses, randomize_visual_setup,
 )
-from vision_errors import CameraAcquisitionError
+from cube_yaw import quaternion_to_yaw
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,27 +29,30 @@ def config(tmp_path):
     project.environment.episode_seconds = 0.15
     project.environment.vision_data.sequences = 2
     project.environment.vision_data.sample_interval_steps = 1
+    project.environment.vision_data.samples_per_sequence = 3
     project.training.vision.data_dir = tmp_path / "vision"
     return project
 
 
-class FakeClock:
-    now = 0.0
-
-    def __call__(self):
-        return self.now
-
-    def wait(self, seconds):
-        self.now += seconds
+@pytest.fixture
+def all_modes_config(config):
+    parameters = config.environment.vision_data
+    parameters.cube_pose_modes = ("ground", "elevated", "stacked", "task", "carry")
+    parameters.cube_pose_mode_probabilities = (0.1, 0.1, 0.1, 0.6, 0.1)
+    return config
 
 
 class FakeRenderer:
+    instances = []
+
     def __init__(self, model, height, width):
         self.height, self.width = height, width
         self.closed = False
         self.depth_rendering = False
+        self.instances.append(self)
 
     def update_scene(self, data, camera):
+        self.data = data
         self.camera = camera
 
     def render(self):
@@ -68,64 +73,177 @@ class FakeRenderer:
         self.closed = True
 
 
-class InitialFramesProducer:
-    """Publish once so collection must retain original times on reused frames."""
-
-    instances = []
-
-    def __init__(self, environment, buffers, fps, renderer_factory):
-        self.environment, self.buffers = environment, buffers
-        self.renderer = renderer_factory(environment.model, height=300, width=300)
-        self.fps = fps
-        self.stopped = False
-        self.instances.append(self)
-
-    def start(self):
-        for name, sim_name in SIM_CAMERA_NAMES.items():
-            self.renderer.update_scene(self.environment.data, camera=sim_name)
-            self.buffers[name].record_read(True, CameraFrame(
-                camera_id=name, timestamp=float(self.environment.data.time), rgb=self.renderer.render(),
-            ))
-
-    def stop(self):
-        self.stopped = True
-        self.renderer.close()
-
-
-def test_additive_saved_sequences_split_whole_setups_and_preserve_latest_timestamps(config):
-    config.environment.vision_data.cube_pose_mode_probabilities = (1.0, 0.0, 0.0, 0.0, 0.0)
-    clock = FakeClock()
-    paths = generate_vision_data(project=config, renderer_factory=FakeRenderer,
-                                 producer_factory=InitialFramesProducer, clock=clock, wait=clock.wait)
+def test_additive_saved_sequences_split_whole_setups_and_preserve_aligned_timestamps(config):
+    parameters = config.environment.vision_data
+    parameters.cube_pose_mode_probabilities = tuple(float(mode == "ground") for mode in parameters.cube_pose_modes)
+    first_renderer = len(FakeRenderer.instances)
+    paths = generate_vision_data(project=config, renderer_factory=FakeRenderer)
     assert {path.parent.name for path in paths} == {"train", "validation"}
     initial_bytes = {path: path.read_bytes() for path in paths}
     setups = []
     for path in paths:
         record = torch.load(path, weights_only=True)
         assert record["sequence_id"] == path.stem
-        assert record["wrist_images"].shape == record["external_images"].shape == (3, 300, 300, 3)
+        assert record["wrist_images"].shape == (3, 128, 128, 3)
+        assert record["external_images"].shape == (3, 300, 300, 3)
         assert record["wrist_images"].dtype == torch.uint8
         assert record["joint_positions"].shape == (3, 6)
         assert record["joint_positions"].dtype == torch.float32
-        assert record["cube_poses"].shape == (3, 14)
+        assert record["cube_poses"].shape == (3, 10)
         assert record["cube_poses"].dtype == torch.float32
+        assert record["pose_representation"] == "leveled_yaw_cos4_sin4_previous_face_ties"
         assert record["phases"] == [record["cube_pose_mode"]] * 3
         torch.testing.assert_close(record["robot_timestamps"], torch.tensor([0., .05, .10], dtype=torch.float64))
-        assert torch.count_nonzero(record["wrist_timestamps"]) == 0
-        assert torch.count_nonzero(record["external_timestamps"]) == 0
+        torch.testing.assert_close(record["wrist_timestamps"], record["robot_timestamps"])
+        torch.testing.assert_close(record["external_timestamps"], record["robot_timestamps"])
         setups.append(record["camera_setup"])
     assert setups[0] != setups[1]
-    more = generate_vision_data(project=config, renderer_factory=FakeRenderer,
-                                producer_factory=InitialFramesProducer, clock=clock, wait=clock.wait)
+    more = generate_vision_data(project=config, renderer_factory=FakeRenderer)
     assert not set(paths).intersection(more)
     assert len(list(config.training.vision.data_dir.rglob("*.pt"))) == 4
     assert all(path.read_bytes() == initial_bytes[path] for path in paths)
-    assert all(producer.stopped for producer in InitialFramesProducer.instances)
-    assert all(producer.fps == config.cameras.fps for producer in InitialFramesProducer.instances)
+    renderers = FakeRenderer.instances[first_renderer:]
+    assert len(renderers) == 8  # Each rollout owns one renderer per camera resolution.
+    assert [(renderer.height, renderer.width) for renderer in renderers] == [(128, 128), (300, 300)] * 4
+    assert all(renderer.closed for renderer in renderers)
+
+
+def test_generation_saves_only_five_aligned_observations_per_rollout_in_both_splits(config, monkeypatch):
+    config.environment.episode_seconds = 0.6
+    parameters = config.environment.vision_data
+    parameters.samples_per_sequence = 5
+    parameters.sample_interval_steps = 2
+    parameters.cube_pose_mode_probabilities = tuple(float(mode == "ground") for mode in parameters.cube_pose_modes)
+    environments = []
+    renderers = []
+    label_updates = []
+
+    def track_labels(environment, encoders=None):
+        label_updates.append((environment, float(environment.data.time), encoders))
+        return cube_pose_labels(environment, encoders=encoders)
+
+    def make_environment(**kwargs):
+        environment = CubeStackEnvironment(**kwargs)
+        environments.append(environment)
+        return environment
+
+    class RecordingRenderer(AugmentedRenderer):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.environment = environments[-1]
+            self.observations = []
+            renderers.append(self)
+
+        def render(self):
+            rendered = super().render()
+            timestamp = float(self.data.time)
+            step = round(timestamp * config.loop.control_hz)
+            offset = list(SIM_CAMERA_NAMES.values()).index(self.camera)
+            joints = SimRobotStateProvider(self.environment).read().joint_positions.astype(np.float32)
+            self.observations.append((self.camera, timestamp, cube_pose_labels(self.environment), joints))
+            return np.full_like(rendered, step + offset * 100)
+
+    monkeypatch.setattr("vision_data.CubeStackEnvironment", make_environment)
+    monkeypatch.setattr("vision_data.AugmentedRenderer", RecordingRenderer)
+    monkeypatch.setattr("vision_data.cube_pose_labels", track_labels)
+    paths = generate_vision_data(project=config, renderer_factory=FakeRenderer)
+
+    assert {path.parent.name for path in paths} == {"train", "validation"}
+    assert len(environments) == 2
+    assert len(renderers) == 4
+    assert len(label_updates) == 24  # Both cubes update at all 12 ticks, not only 5 saved frames.
+    assert label_updates[0][2] is not label_updates[12][2]
+    for index, (path, environment) in enumerate(zip(paths, environments, strict=True)):
+        updates = label_updates[index * 12:(index + 1) * 12]
+        assert all(item[0] is environment and item[2] is updates[0][2] for item in updates)
+        assert updates[0][2]["orange"] is not updates[0][2]["blue"]
+        assert [item[1] for item in updates] == pytest.approx(np.arange(12) / config.loop.control_hz)
+        wrist_renderer, external_renderer = renderers[2 * index:2 * index + 2]
+        assert environment.data.time == pytest.approx(.6)  # All 12 control steps still run.
+        assert wrist_renderer.renderer.closed and external_renderer.renderer.closed
+        # Exactly five paired captures; no startup capture or rendering at other steps.
+        wrist_observations = wrist_renderer.observations
+        external_observations = external_renderer.observations
+        assert len(wrist_observations) == len(external_observations) == 5
+        assert [item[0] for item in wrist_observations] == ["wrist_cam"] * 5
+        assert [item[0] for item in external_observations] == ["external"] * 5
+        for wrist, external in zip(wrist_observations, external_observations, strict=True):
+            assert wrist[1] == external[1]
+            np.testing.assert_array_equal(wrist[2], external[2])
+            np.testing.assert_array_equal(wrist[3], external[3])
+        record = torch.load(path, weights_only=True)
+        assert record["wrist_images"].shape == (5, 128, 128, 3)
+        assert record["external_images"].shape == (5, 300, 300, 3)
+        assert record["joint_positions"].shape == (5, 6)
+        assert record["cube_poses"].shape == (5, 10)
+        assert record["phases"] == ["ground"] * 5
+        times = record["robot_timestamps"]
+        torch.testing.assert_close(times, torch.tensor(
+            [item[1] for item in wrist_observations], dtype=torch.float64,
+        ))
+        torch.testing.assert_close(record["cube_poses"], torch.from_numpy(
+            np.stack([item[2] for item in wrist_observations]),
+        ))
+        torch.testing.assert_close(record["joint_positions"], torch.from_numpy(
+            np.stack([item[3] for item in wrist_observations]),
+        ))
+        assert torch.all(times[1:] > times[:-1])
+        steps = (times * config.loop.control_hz).round().to(torch.uint8)
+        assert torch.all(steps % 2 == 0)
+        torch.testing.assert_close(record["wrist_images"][:, 0, 0, 0], steps)
+        torch.testing.assert_close(record["external_images"][:, 0, 0, 0], steps + 100)
+        torch.testing.assert_close(record["wrist_timestamps"], times)
+        torch.testing.assert_close(record["external_timestamps"], times)
+        loaded = load_vision_dataset(path.parent, show_progress=False)
+        assert loaded.tensors[0].shape == (5, 3, 128, 128)
+        assert loaded.tensors[1].shape == (5, 3, 300, 300)
+        torch.testing.assert_close(loaded.tensors[1], record["external_images"].permute(0, 3, 1, 2))
+
+
+def test_sample_selection_is_seeded_unique_and_does_not_change_the_rollout(config):
+    config.environment.episode_seconds = 0.6
+    parameters = config.environment.vision_data
+    parameters.sample_interval_steps = 1
+    final_states = []
+
+    def collect(seed, sample_count):
+        parameters.samples_per_sequence = sample_count
+        record = collect_sequence(project=config, sequence_id="sampling", mode="ground",
+                                  rng=np.random.default_rng(seed), renderer_factory=FakeRenderer)
+        data = FakeRenderer.instances[-1].data
+        final_states.append((data.qpos.copy(), data.ctrl.copy()))
+        assert data.time == pytest.approx(.6)
+        times = record["robot_timestamps"]
+        assert len(times) == sample_count
+        assert torch.all(times[1:] > times[:-1])
+        return times
+
+    first = collect(seed=4, sample_count=5)
+    repeated = collect(seed=4, sample_count=5)
+    other_seed = collect(seed=5, sample_count=5)
+    collect(seed=4, sample_count=2)
+    torch.testing.assert_close(first, repeated)
+    assert not torch.equal(first, other_seed)
+    for before, after in zip(final_states[0], final_states[-1], strict=True):
+        np.testing.assert_array_equal(before, after)
+
+
+def test_too_many_samples_fail_before_creating_the_environment(config, monkeypatch):
+    config.environment.vision_data.samples_per_sequence = 4
+
+    def unexpected_environment(**kwargs):
+        raise AssertionError("Must validate the requested sample count before allocating a scene")
+
+    monkeypatch.setattr("vision_data.CubeStackEnvironment", unexpected_environment)
+    with pytest.raises(ValueError, match="samples_per_sequence=4 exceeds the 3 available sample steps"):
+        collect_sequence(project=config, sequence_id="invalid", mode="ground", rng=np.random.default_rng(1),
+                         renderer_factory=FakeRenderer)
 
 
 @pytest.mark.parametrize("selected_mode", ["ground", "elevated", "stacked", "task", "carry"])
-def test_generation_honors_mode_probabilities_and_excludes_zero_weight_modes(config, monkeypatch, selected_mode):
+def test_generation_honors_mode_probabilities_and_excludes_zero_weight_modes(all_modes_config, monkeypatch,
+                                                                            selected_mode):
+    config = all_modes_config
     parameters = config.environment.vision_data
     parameters.sequences = 6
     parameters.cube_pose_mode_probabilities = tuple(
@@ -137,7 +255,7 @@ def test_generation_honors_mode_probabilities_and_excludes_zero_weight_modes(con
         collected_modes.append(mode)
         return {
             "sequence_id": sequence_id, "cube_pose_mode": mode,
-            "cube_poses": torch.zeros((1, 14)), "final_scenario_metadata": None,
+            "cube_poses": torch.zeros((1, 10)), "final_scenario_metadata": None,
         }
 
     monkeypatch.setattr("vision_data.collect_sequence", collect_stub)
@@ -149,32 +267,33 @@ def test_generation_honors_mode_probabilities_and_excludes_zero_weight_modes(con
 
 
 @pytest.mark.parametrize("mode", ["ground", "elevated", "stacked", "task", "carry"])
-def test_cube_modes_and_label_order(config, mode):
-    environment = CubeStackEnvironment(config.environment.scene_path)
+def test_cube_modes_and_label_order(all_modes_config, mode):
+    config = all_modes_config
+    environment = CubeStackEnvironment(config.environment.scene_path, configure_spec=configure_vision_materials)
     randomize_cube_poses(environment, config.environment.vision_data, np.random.default_rng(5), mode)
     labels = cube_pose_labels(environment)
     for index, name in enumerate(("orange", "blue")):
-        pose = labels[index * 7:(index + 1) * 7]
+        pose = labels[index * 5:(index + 1) * 5]
         np.testing.assert_allclose(pose[:3], environment.data.body(f"{name}_cube").xpos)
-        np.testing.assert_allclose(pose[3:], environment.data.body(f"{name}_cube").xquat)
+        np.testing.assert_allclose(pose[3:], quaternion_to_yaw(environment.data.body(f"{name}_cube").xquat))
         assert np.linalg.norm(pose[3:]) == pytest.approx(1.0)
     if mode in ("ground", "task", "carry"):
         assert labels[2] == pytest.approx(.02)
-        assert labels[9] == pytest.approx(.02)
-        assert np.linalg.norm(labels[:2] - labels[7:9]) >= config.environment.vision_data.minimum_cube_separation
+        assert labels[7] == pytest.approx(.02)
+        assert np.linalg.norm(labels[:2] - labels[5:7]) >= config.environment.vision_data.minimum_cube_separation
         if mode in ("task", "carry"):
-            np.testing.assert_array_equal(labels[3:7], [1, 0, 0, 0])
-            np.testing.assert_array_equal(labels[10:14], [1, 0, 0, 0])
+            np.testing.assert_array_equal(labels[3:5], [1, 0])
+            np.testing.assert_array_equal(labels[8:10], [1, 0])
     elif mode == "elevated":
         assert .02 <= labels[2] <= .16
-        assert .02 <= labels[9] <= .16
+        assert .02 <= labels[7] <= .16
     else:
-        np.testing.assert_allclose(labels[:2], labels[7:9])
-        assert labels[2] - labels[9] == pytest.approx(.04)
+        np.testing.assert_allclose(labels[:2], labels[5:7])
+        assert labels[2] - labels[7] == pytest.approx(.04)
 
 
 def test_setup_ranges_and_relative_mounts_are_fixed_for_sequence(config):
-    environment = CubeStackEnvironment(config.environment.scene_path)
+    environment = CubeStackEnvironment(config.environment.scene_path, configure_spec=configure_vision_materials)
     original = {name: environment.model.camera(sim_name).pos.copy()
                 for name, sim_name in SIM_CAMERA_NAMES.items()}
     parameters = config.environment.vision_data
@@ -191,7 +310,7 @@ def test_setup_ranges_and_relative_mounts_are_fixed_for_sequence(config):
 
 @pytest.mark.parametrize("target_fovy", [65.0, 100.0])
 def test_fov_randomization_changes_rendered_frustum_for_both_cameras(config, target_fovy):
-    environment = CubeStackEnvironment(config.environment.scene_path)
+    environment = CubeStackEnvironment(config.environment.scene_path, configure_spec=configure_vision_materials)
     model = environment.model
     original_sensor_sizes = model.cam_sensorsize.copy()
     original_intrinsics = model.cam_intrinsic.copy()
@@ -225,7 +344,7 @@ def test_fov_randomization_changes_rendered_frustum_for_both_cameras(config, tar
 
 @pytest.mark.parametrize("jitter", [(0.0, 0.07, 0.02), (0.03, 0.0, 0.0)])
 def test_camera_position_jitter_uses_each_mount_axis_and_preserves_zero_axes(config, jitter):
-    environment = CubeStackEnvironment(config.environment.scene_path)
+    environment = CubeStackEnvironment(config.environment.scene_path, configure_spec=configure_vision_materials)
     original = {name: environment.model.camera(sim_name).pos.copy()
                 for name, sim_name in SIM_CAMERA_NAMES.items()}
     config.environment.vision_data.camera_position_jitter = jitter
@@ -241,7 +360,7 @@ def test_camera_position_jitter_uses_each_mount_axis_and_preserves_zero_axes(con
 
 @pytest.mark.parametrize("jitter", [(0.1, 0.1, 0.1), (0.0, 0.07, 0.02), (0.03, 0.0, 0.0)])
 def test_light_position_jitter_respects_each_axis_and_stays_fixed_during_simulation(config, jitter):
-    environment = CubeStackEnvironment(config.environment.scene_path)
+    environment = CubeStackEnvironment(config.environment.scene_path, configure_spec=configure_vision_materials)
     model = environment.model
     assert model.nlight > 0
     original = model.light_pos.copy()
@@ -268,7 +387,7 @@ def test_light_position_jitter_respects_each_axis_and_stays_fixed_during_simulat
 
 @pytest.mark.parametrize("saturation", [0.0, 0.06])
 def test_lights_use_independent_intensities_and_share_a_near_white_tint(config, saturation):
-    environment = CubeStackEnvironment(config.environment.scene_path)
+    environment = CubeStackEnvironment(config.environment.scene_path, configure_spec=configure_vision_materials)
     parameters = config.environment.vision_data
     parameters.light_intensity_range = (0.7, 0.7)
     parameters.ambient_intensity_range = (0.25, 0.25)
@@ -289,7 +408,7 @@ def test_lights_use_independent_intensities_and_share_a_near_white_tint(config, 
 
 
 def test_zero_ambient_intensity_disables_ambient_light(config):
-    environment = CubeStackEnvironment(config.environment.scene_path)
+    environment = CubeStackEnvironment(config.environment.scene_path, configure_spec=configure_vision_materials)
     parameters = config.environment.vision_data
     parameters.ambient_intensity_range = (0.0, 0.0)
     randomize_visual_setup(environment, parameters, np.random.default_rng(3))
@@ -299,7 +418,7 @@ def test_zero_ambient_intensity_disables_ambient_light(config):
 
 @pytest.mark.parametrize("enabled", [True, False])
 def test_shadow_setting_overrides_every_scene_light(config, enabled):
-    environment = CubeStackEnvironment(config.environment.scene_path)
+    environment = CubeStackEnvironment(config.environment.scene_path, configure_spec=configure_vision_materials)
     parameters = config.environment.vision_data
     parameters.shadows_enabled = enabled
     assert environment.model.nlight > 0
@@ -334,37 +453,57 @@ def test_identity_lens_and_image_augmentation_preserve_rgb_shape(config):
     assert renderer.renderer.closed
 
 
-def test_missing_initial_frames_times_out_and_closes_worker(config):
-    class NoFrames(InitialFramesProducer):
-        def start(self):
-            pass
+@pytest.mark.parametrize("failure_stage", ["update_scene", "render"])
+def test_camera_failure_escapes_without_retry_and_closes_renderer(config, failure_stage):
+    first_renderer = len(FakeRenderer.instances)
+    class FailedRenderer(FakeRenderer):
+        failures = 0
 
-    clock = FakeClock()
-    with pytest.raises(CameraAcquisitionError, match="Initial camera frames"):
-        collect_sequence(project=config, sequence_id="failure", mode="ground", rng=np.random.default_rng(1),
-                         renderer_factory=FakeRenderer, producer_factory=NoFrames, clock=clock, wait=clock.wait)
-    assert NoFrames.instances[-1].stopped
+        def update_scene(self, data, camera):
+            super().update_scene(data, camera)
+            if failure_stage == "update_scene" and camera == "external":
+                self.failures += 1
+                raise RuntimeError("external camera failed")
+
+        def render(self):
+            if failure_stage == "render" and self.camera == "external":
+                self.failures += 1
+                raise RuntimeError("external camera failed")
+            return super().render()
+
+    with pytest.raises(RuntimeError, match="external camera failed"):
+        generate_vision_data(project=config, renderer_factory=FailedRenderer)
+    renderer = FailedRenderer.instances[-1]
+    assert renderer.failures == 1
+    assert renderer.closed
+    assert all(instance.closed for instance in FakeRenderer.instances[first_renderer:])
+    assert renderer.data.time == 0.0
+    assert not list(config.training.vision.data_dir.rglob("*.pt"))
 
 
-def test_producer_fatal_error_is_not_retried_as_missing_data(config):
-    class FailedProducer(InitialFramesProducer):
-        def start(self):
-            for buffer in self.buffers.values():
-                buffer.record_failure(CameraAcquisitionError("failed initialization"))
+def test_second_camera_initialization_failure_closes_first_renderer(config):
+    first_renderer = len(FakeRenderer.instances)
 
-    clock = FakeClock()
-    with pytest.raises(CameraAcquisitionError, match="failed initialization"):
-        collect_sequence(project=config, sequence_id="failure", mode="ground", rng=np.random.default_rng(1),
-                         renderer_factory=FakeRenderer, producer_factory=FailedProducer, clock=clock, wait=clock.wait)
-    assert clock.now == 0.0
-    assert FailedProducer.instances[-1].stopped
+    def factory(model, height, width):
+        if height == 300:
+            raise RuntimeError("external renderer initialization failed")
+        return FakeRenderer(model, height, width)
+
+    with pytest.raises(RuntimeError, match="external renderer initialization failed"):
+        collect_sequence(project=config, sequence_id="failed-renderer", mode="ground",
+                         rng=np.random.default_rng(9), renderer_factory=factory)
+    created = FakeRenderer.instances[first_renderer:]
+    assert len(created) == 1
+    assert created[0].closed
 
 
 @pytest.mark.parametrize("mode, scenario_name", [
     ("task", "ScriptedVisionScenario"), ("carry", "ScriptedCarryScenario"),
 ])
-def test_scripted_modes_record_observed_phases_and_never_use_random_commands(config, monkeypatch,
-                                                                          mode, scenario_name):
+@pytest.mark.parametrize("sample_count", [1, 2, 3])
+def test_scripted_modes_record_observed_phases_and_never_use_random_commands(all_modes_config, monkeypatch,
+                                                                          mode, scenario_name, sample_count):
+    config = all_modes_config
     instances = []
     rng = np.random.default_rng(1)
 
@@ -389,10 +528,9 @@ def test_scripted_modes_record_observed_phases_and_never_use_random_commands(con
 
     monkeypatch.setattr(f"vision_data.{scenario_name}", Scenario)
     config.environment.vision_data.joint_step_std = 1e6  # Must not affect scripted commands.
-    clock = FakeClock()
+    config.environment.vision_data.samples_per_sequence = sample_count
     record = collect_sequence(project=config, sequence_id=f"{mode}-example", mode=mode, rng=rng,
-                              renderer_factory=FakeRenderer, producer_factory=InitialFramesProducer,
-                              clock=clock, wait=clock.wait)
+                              renderer_factory=FakeRenderer)
     scenario = instances[0]
     assert scenario.config is config.environment.vision_data.task
     assert scenario.controller_config is config.cartesian_controller
@@ -403,7 +541,9 @@ def test_scripted_modes_record_observed_phases_and_never_use_random_commands(con
         assert scenario.extra_arguments == {}
     assert scenario.steps == 3
     assert scenario.environment.data.time == pytest.approx(.15)
-    assert record["phases"] == ["approach", "descend", "grasp"]
+    observed_steps = (record["robot_timestamps"] * config.loop.control_hz).round().to(torch.int64)
+    assert len(observed_steps) == sample_count
+    assert record["phases"] == [["approach", "descend", "grasp"][step] for step in observed_steps]
     assert [item["phase"] for item in record["scenario_metadata"]] == record["phases"]
     assert not any(item["ever_grasped"] for item in record["scenario_metadata"])
     assert record["final_scenario_metadata"]["phase"] == "carry"
@@ -415,6 +555,6 @@ def test_scripted_modes_record_observed_phases_and_never_use_random_commands(con
 def test_invalid_separation_is_reported_before_producing_frames(config):
     config.environment.vision_data.cube_x_range = (.3, .3)
     config.environment.vision_data.cube_y_range = (0., 0.)
-    environment = CubeStackEnvironment(config.environment.scene_path)
+    environment = CubeStackEnvironment(config.environment.scene_path, configure_spec=configure_vision_materials)
     with pytest.raises(ValueError, match="minimum_cube_separation"):
         randomize_cube_poses(environment, config.environment.vision_data, np.random.default_rng(1), "task")

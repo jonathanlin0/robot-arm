@@ -1,0 +1,306 @@
+{
+  "mujoco_version": "3.11.0",
+  "source_scene": "/Users/jonathanlin/Documents/GitHub/robot-arm/scenes/so101_two_cube_stack.xml",
+  "frames": [
+    {
+      "row": "specular",
+      "column": 1,
+      "settings": {
+        "specular": 0.0,
+        "shininess": 0.35,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/specular_00_0.000.png"
+    },
+    {
+      "row": "specular",
+      "column": 2,
+      "settings": {
+        "specular": 0.1111111111111111,
+        "shininess": 0.35,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/specular_01_0.111.png"
+    },
+    {
+      "row": "specular",
+      "column": 3,
+      "settings": {
+        "specular": 0.2222222222222222,
+        "shininess": 0.35,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/specular_02_0.222.png"
+    },
+    {
+      "row": "specular",
+      "column": 4,
+      "settings": {
+        "specular": 0.3333333333333333,
+        "shininess": 0.35,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/specular_03_0.333.png"
+    },
+    {
+      "row": "specular",
+      "column": 5,
+      "settings": {
+        "specular": 0.4444444444444444,
+        "shininess": 0.35,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/specular_04_0.444.png"
+    },
+    {
+      "row": "specular",
+      "column": 6,
+      "settings": {
+        "specular": 0.5555555555555556,
+        "shininess": 0.35,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/specular_05_0.556.png"
+    },
+    {
+      "row": "specular",
+      "column": 7,
+      "settings": {
+        "specular": 0.6666666666666666,
+        "shininess": 0.35,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/specular_06_0.667.png"
+    },
+    {
+      "row": "specular",
+      "column": 8,
+      "settings": {
+        "specular": 0.7777777777777777,
+        "shininess": 0.35,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/specular_07_0.778.png"
+    },
+    {
+      "row": "specular",
+      "column": 9,
+      "settings": {
+        "specular": 0.8888888888888888,
+        "shininess": 0.35,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/specular_08_0.889.png"
+    },
+    {
+      "row": "specular",
+      "column": 10,
+      "settings": {
+        "specular": 1.0,
+        "shininess": 0.35,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/specular_09_1.000.png"
+    },
+    {
+      "row": "shininess",
+      "column": 1,
+      "settings": {
+        "specular": 0.8,
+        "shininess": 0.0,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/shininess_00_0.000.png"
+    },
+    {
+      "row": "shininess",
+      "column": 2,
+      "settings": {
+        "specular": 0.8,
+        "shininess": 0.1111111111111111,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/shininess_01_0.111.png"
+    },
+    {
+      "row": "shininess",
+      "column": 3,
+      "settings": {
+        "specular": 0.8,
+        "shininess": 0.2222222222222222,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/shininess_02_0.222.png"
+    },
+    {
+      "row": "shininess",
+      "column": 4,
+      "settings": {
+        "specular": 0.8,
+        "shininess": 0.3333333333333333,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/shininess_03_0.333.png"
+    },
+    {
+      "row": "shininess",
+      "column": 5,
+      "settings": {
+        "specular": 0.8,
+        "shininess": 0.4444444444444444,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/shininess_04_0.444.png"
+    },
+    {
+      "row": "shininess",
+      "column": 6,
+      "settings": {
+        "specular": 0.8,
+        "shininess": 0.5555555555555556,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/shininess_05_0.556.png"
+    },
+    {
+      "row": "shininess",
+      "column": 7,
+      "settings": {
+        "specular": 0.8,
+        "shininess": 0.6666666666666666,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/shininess_06_0.667.png"
+    },
+    {
+      "row": "shininess",
+      "column": 8,
+      "settings": {
+        "specular": 0.8,
+        "shininess": 0.7777777777777777,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/shininess_07_0.778.png"
+    },
+    {
+      "row": "shininess",
+      "column": 9,
+      "settings": {
+        "specular": 0.8,
+        "shininess": 0.8888888888888888,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/shininess_08_0.889.png"
+    },
+    {
+      "row": "shininess",
+      "column": 10,
+      "settings": {
+        "specular": 0.8,
+        "shininess": 1.0,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/shininess_09_1.000.png"
+    },
+    {
+      "row": "reflectance",
+      "column": 1,
+      "settings": {
+        "specular": 0.3,
+        "shininess": 0.35,
+        "reflectance": 0.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/reflectance_00_0.000.png"
+    },
+    {
+      "row": "reflectance",
+      "column": 2,
+      "settings": {
+        "specular": 0.3,
+        "shininess": 0.35,
+        "reflectance": 0.1111111111111111
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/reflectance_01_0.111.png"
+    },
+    {
+      "row": "reflectance",
+      "column": 3,
+      "settings": {
+        "specular": 0.3,
+        "shininess": 0.35,
+        "reflectance": 0.2222222222222222
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/reflectance_02_0.222.png"
+    },
+    {
+      "row": "reflectance",
+      "column": 4,
+      "settings": {
+        "specular": 0.3,
+        "shininess": 0.35,
+        "reflectance": 0.3333333333333333
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/reflectance_03_0.333.png"
+    },
+    {
+      "row": "reflectance",
+      "column": 5,
+      "settings": {
+        "specular": 0.3,
+        "shininess": 0.35,
+        "reflectance": 0.4444444444444444
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/reflectance_04_0.444.png"
+    },
+    {
+      "row": "reflectance",
+      "column": 6,
+      "settings": {
+        "specular": 0.3,
+        "shininess": 0.35,
+        "reflectance": 0.5555555555555556
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/reflectance_05_0.556.png"
+    },
+    {
+      "row": "reflectance",
+      "column": 7,
+      "settings": {
+        "specular": 0.3,
+        "shininess": 0.35,
+        "reflectance": 0.6666666666666666
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/reflectance_06_0.667.png"
+    },
+    {
+      "row": "reflectance",
+      "column": 8,
+      "settings": {
+        "specular": 0.3,
+        "shininess": 0.35,
+        "reflectance": 0.7777777777777777
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/reflectance_07_0.778.png"
+    },
+    {
+      "row": "reflectance",
+      "column": 9,
+      "settings": {
+        "specular": 0.3,
+        "shininess": 0.35,
+        "reflectance": 0.8888888888888888
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/reflectance_08_0.889.png"
+    },
+    {
+      "row": "reflectance",
+      "column": 10,
+      "settings": {
+        "specular": 0.3,
+        "shininess": 0.35,
+        "reflectance": 1.0
+      },
+      "image": "/Users/jonathanlin/Documents/GitHub/robot-arm/temp/cube_material_sweep_frames/reflectance_09_1.000.png"
+    }
+  ]
+}

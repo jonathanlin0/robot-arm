@@ -1,0 +1,64 @@
+{
+  "source": "/Users/jonathanlin/Documents/GitHub/robot-arm/logs/vision-training-mps-20261024-211512-252803.metrics.log",
+  "snapshot_at": "2026-10-24T22:58:01.096509-05:00",
+  "snapshot_sha256": "e21f385976c8b44de7c21e25ddbc5102936e6cbbe90a3598e7cf0d9f6174e8be",
+  "latest_completed_epoch": 26,
+  "training_loss": 0.018037,
+  "best_training": {
+    "epoch": 26,
+    "train_loss": 0.018037,
+    "val_loss": null,
+    "val_position_error_m": null,
+    "learning_rate": 0.0001,
+    "next_learning_rate": 0.0001
+  },
+  "latest_validation": {
+    "epoch": 20,
+    "train_loss": 0.027241,
+    "val_loss": 0.029583,
+    "val_position_error_m": 0.008587,
+    "learning_rate": 0.0001,
+    "next_learning_rate": 0.0001
+  },
+  "best_validation": {
+    "epoch": 20,
+    "train_loss": 0.027241,
+    "val_loss": 0.029583,
+    "val_position_error_m": 0.008587,
+    "learning_rate": 0.0001,
+    "next_learning_rate": 0.0001
+  },
+  "best_position": {
+    "epoch": 20,
+    "train_loss": 0.027241,
+    "val_loss": 0.029583,
+    "val_position_error_m": 0.008587,
+    "learning_rate": 0.0001,
+    "next_learning_rate": 0.0001
+  },
+  "validation": [
+    {
+      "epoch": 10,
+      "train_loss": 0.038298,
+      "val_loss": 0.03653,
+      "val_position_error_m": 0.011361,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 0.0001
+    },
+    {
+      "epoch": 20,
+      "train_loss": 0.027241,
+      "val_loss": 0.029583,
+      "val_position_error_m": 0.008587,
+      "learning_rate": 0.0001,
+      "next_learning_rate": 0.0001
+    }
+  ],
+  "learning_rate_reductions": [],
+  "current_learning_rate": 0.0001,
+  "batch_size": 16,
+  "device": "mps",
+  "configured_epochs": 200,
+  "png": "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/vision-training-mps-20261024-211512-252803-epoch-26/vision_training.png",
+  "svg": "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/vision-training-mps-20261024-211512-252803-epoch-26/vision_training.svg"
+}

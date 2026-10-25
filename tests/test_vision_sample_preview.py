@@ -43,11 +43,11 @@ def config(tmp_path):
 
 def image_dataset(count, dtype):
     values = torch.arange(count, dtype=torch.uint8)
-    wrist = (10 + 3 * values).reshape(-1, 1, 1, 1).expand(-1, 3, 300, 300)
-    external = (200 - 3 * values).reshape(-1, 1, 1, 1).expand_as(wrist)
+    wrist = (10 + 3 * values).reshape(-1, 1, 1, 1).expand(-1, 3, 128, 128)
+    external = (200 - 3 * values).reshape(-1, 1, 1, 1).expand(-1, 3, 300, 300)
     if dtype == torch.float32:
         wrist, external = wrist.float() / 255, external.float() / 255
-    return TensorDataset(wrist, external, torch.zeros(count, 6), torch.zeros(count, 14))
+    return TensorDataset(wrist, external, torch.zeros(count, 6), torch.zeros(count, 10))
 
 
 @pytest.mark.parametrize("dtype", [torch.uint8, torch.float32])
@@ -76,17 +76,20 @@ def test_grid_requires_twenty_samples(preview, config, monkeypatch):
         preview.build_grid(config, "external")
 
 
-def test_training_loader_reads_variable_shards_without_validation_data(config, monkeypatch):
+@pytest.mark.parametrize("pose_width", [10, 14])
+def test_training_loader_reads_variable_shards_without_validation_data(config, monkeypatch, pose_width):
     from training import create_vision_training_loader
 
     train_dir = config.data_dir / "train"
     train_dir.mkdir()
     for index, count in enumerate((1, 3)):
+        poses = torch.zeros(count, pose_width)
+        poses[:, 3] = poses[:, pose_width // 2 + 3] = 1.0
         torch.save({
-            "wrist_images": torch.full((count, 300, 300, 3), 20 + index, dtype=torch.uint8),
+            "wrist_images": torch.full((count, 128, 128, 3), 20 + index, dtype=torch.uint8),
             "external_images": torch.full((count, 300, 300, 3), 50 + index, dtype=torch.uint8),
             "joint_positions": torch.zeros(count, 6),
-            "cube_poses": torch.zeros(count, 14),
+            "cube_poses": poses,
         }, train_dir / f"{index}.pt")
 
     calls = []
@@ -102,4 +105,6 @@ def test_training_loader_reads_variable_shards_without_validation_data(config, m
     assert len(loader.dataset) == 4
     assert batch[0][:, 0, 0, 0].tolist() == [235, 234, 234, 234]
     assert batch[1][:, 0, 0, 0].tolist() == [205, 204, 204, 204]
+    assert batch[3].shape == (4, 10)
+    torch.testing.assert_close(batch[3][:, [3, 8]], torch.ones(4, 2))
     assert calls == [(config.randaugment.num_ops, config.randaugment.magnitude)] * 8
