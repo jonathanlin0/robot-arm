@@ -1,0 +1,26 @@
+{
+  "run_id": "action-training-mps-20261025-121802-702296",
+  "snapshot_at": "2026-10-25T12:58:03.023477-05:00",
+  "snapshot_sha256": "8f559d9b370e4b65902d6317d5487f3b0f4191a71ca49d0cac0271165cc688b5",
+  "latest_logged_epoch": {
+    "epoch": 9,
+    "train_loss": 0.013958,
+    "val_loss": null,
+    "val_success_rate_pct": null
+  },
+  "pending_validation": {
+    "epoch": 10,
+    "train_loss": 0.013304,
+    "source_line": "Epoch 10/400 rollout validation:   2%|\u258e         | 3478/139120 [04:16<1:09:17, 32.63batch/s, train_loss=0.013304, val_loss=NaN, val_success_rate_pct=NaN]",
+    "episodes": 60,
+    "planned_episodes": 200,
+    "success_rate_pct": 0.0,
+    "successes": 0,
+    "timeouts": 49,
+    "rollout_source_line": "Action validation rollouts:  30%|\u2588\u2588\u2588       | 60/200 [33:53<1:29:11, 38.23s/episode, ik_failures=11, success_rate_pct=0.00, successes=0, timeouts=49]\u001b[A"
+  },
+  "latest_validation": null,
+  "latest_success_rate": null,
+  "png": "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/action-training-mps-20261025-121802-702296-chart-20261025-125803-023477/action_training.png",
+  "svg": "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/action-training-mps-20261025-121802-702296-chart-20261025-125803-023477/action_training.svg"
+}

@@ -1,0 +1,36 @@
+{
+  "run_id": "action-training-mps-20261025-121802-702296",
+  "snapshot_at": "2026-10-25T16:36:33.964023-05:00",
+  "snapshot_sha256": "a63b0b0544987cfc57f1f6cee7d94aea61fb981676a1cf31666250c074b4082a",
+  "latest_logged_epoch": {
+    "epoch": 29,
+    "train_loss": 0.008651,
+    "val_loss": null,
+    "val_success_rate_pct": null
+  },
+  "pending_validation": {
+    "epoch": 30,
+    "train_loss": 0.008563,
+    "source_line": "Epoch 30/400 rollout validation:   8%|\u258a         | 10434/139120 [4:05:43<59:05, 36.30batch/s, train_loss=0.008563, val_loss=0.008761, val_success_rate_pct=0.000000]",
+    "episodes": 18,
+    "planned_episodes": 200,
+    "success_rate_pct": 0.0,
+    "successes": 0,
+    "timeouts": 18,
+    "rollout_source_line": "Action validation rollouts:   9%|\u2589         | 18/200 [11:10<1:53:50, 37.53s/episode, ik_failures=0, success_rate_pct=0.00, successes=0, timeouts=18]\u001b[A"
+  },
+  "latest_validation": {
+    "epoch": 20,
+    "train_loss": 0.010021,
+    "val_loss": 0.008761,
+    "val_success_rate_pct": 0.0
+  },
+  "latest_success_rate": {
+    "epoch": 20,
+    "train_loss": 0.010021,
+    "val_loss": 0.008761,
+    "val_success_rate_pct": 0.0
+  },
+  "png": "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/action-training-mps-20261025-121802-702296-chart-20261025-163633-964023/action_training.png",
+  "svg": "/Users/jonathanlin/Documents/GitHub/robot-arm/reports/action-training-mps-20261025-121802-702296-chart-20261025-163633-964023/action_training.svg"
+}

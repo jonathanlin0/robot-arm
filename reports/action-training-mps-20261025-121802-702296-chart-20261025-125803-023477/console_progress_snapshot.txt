@@ -1,0 +1,2 @@
+Epoch 10/400 rollout validation:   2%|▎         | 3478/139120 [04:16<1:09:17, 32.63batch/s, train_loss=0.013304, val_loss=NaN, val_success_rate_pct=NaN]
+Action validation rollouts:  30%|███       | 60/200 [33:53<1:29:11, 38.23s/episode, ik_failures=11, success_rate_pct=0.00, successes=0, timeouts=49][A
